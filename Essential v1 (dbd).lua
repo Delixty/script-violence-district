@@ -1,4 +1,4 @@
--- Essential GUI - Optimized Stability Version
+-- Essential GUI - Grey Config Buttons
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -16,12 +16,6 @@ local ManiacR, ManiacG, ManiacB = 239, 68, 68
 local SurvivorESPEnabled = false
 local SurvivorR, SurvivorG, SurvivorB = 34, 197, 94
 
-local GeneratorESPEnabled = false
-local GeneratorR, GeneratorG, GeneratorB = 255, 255, 0
-
-local PalletESPEnabled = false
-local PalletR, PalletG, PalletB = 255, 128, 0
-
 local FOVEnabled = false
 local currentFOV = 70
 local SpeedhackEnabled = false
@@ -32,11 +26,6 @@ local FlashlightEnabled = false
 local FlashR, FlashG, FlashB = 255, 255, 255
 local FlashRange = 60
 local currentLight = nil
-
--- Object Cache Tracking
-local trackedGenerators = {}
-local trackedPallets = {}
-local isScanningMap = false
 
 -- Theme Colors
 local AccentColor = Color3.fromRGB(151, 71, 255) 
@@ -116,7 +105,7 @@ table.insert(connections, UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 end))
 
--- Плавная анимация
+-- Плавная анимация (Scale)
 local isMenuOpen = true
 local tweenScale
 local tweenStyleIn = TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
@@ -125,6 +114,7 @@ local tweenStyleOut = TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.Eas
 table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed and input.KeyCode == Enum.KeyCode.RightShift then
         isMenuOpen = not isMenuOpen
+        
         if tweenScale then tweenScale:Cancel() end
         
         if isMenuOpen then
@@ -135,8 +125,11 @@ table.insert(connections, UserInputService.InputBegan:Connect(function(input, ga
         else
             tweenScale = TweenService:Create(MenuScale, tweenStyleOut, {Scale = 0.85})
             tweenScale:Play()
+            
             task.delay(0.25, function()
-                if not isMenuOpen then MainFrame.Visible = false end
+                if not isMenuOpen then
+                    MainFrame.Visible = false
+                end
             end)
         end
     end
@@ -258,6 +251,7 @@ local function CreateToggle(parent, text, default, callback)
         
         TweenService:Create(circle, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = circlePos}):Play()
         TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = bgColor}):Play()
+        
         callback(state)
     end
     btn.MouseButton1Click:Connect(function() setState(not state) end)
@@ -340,6 +334,7 @@ local function CreateButton(parent, text, bgCol, callback)
     btn.Font = Enum.Font.GothamSemibold
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     Instance.new("UIStroke", btn).Color = Color3.fromRGB(40, 40, 42)
+    
     btn.MouseButton1Click:Connect(callback)
     return btn
 end
@@ -363,8 +358,8 @@ local function CreateInput(parent, placeholder, callback)
     box.Font = Enum.Font.Gotham
     box.TextXAlignment = Enum.TextXAlignment.Left
     box.ClearTextOnFocus = false
-    box.FocusLost:Connect(function() callback(box.Text) end)
     
+    box.FocusLost:Connect(function() callback(box.Text) end)
     return function(txt)
         box.Text = txt
         callback(txt)
@@ -454,7 +449,7 @@ MainBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 MainPage.Visible = true
 
 -- ==================================
--- MAIN TAB
+-- MAIN TAB (CUSTOM ESP MENUS)
 -- ==================================
 local maniacDropdown = CreateDropdownSection(MainPage, "Maniac ESP")
 local toggleManiac = CreateToggle(maniacDropdown, "Enable Maniac ESP", false, function(state) ManiacESPEnabled = state end)
@@ -468,20 +463,8 @@ local sliderSR = CreateSlider(survivorDropdown, "Color: Red (R)", 0, 255, 34, fu
 local sliderSG = CreateSlider(survivorDropdown, "Color: Green (G)", 0, 255, 197, function(val) SurvivorG = val end)
 local sliderSB = CreateSlider(survivorDropdown, "Color: Blue (B)", 0, 255, 94, function(val) SurvivorB = val end)
 
-local generatorDropdown = CreateDropdownSection(MainPage, "Generator ESP")
-local toggleGenerator = CreateToggle(generatorDropdown, "Enable Generator ESP", false, function(state) GeneratorESPEnabled = state end)
-local sliderGR = CreateSlider(generatorDropdown, "Color: Red (R)", 0, 255, 255, function(val) GeneratorR = val end)
-local sliderGG = CreateSlider(generatorDropdown, "Color: Green (G)", 0, 255, 255, function(val) GeneratorG = val end)
-local sliderGB = CreateSlider(generatorDropdown, "Color: Blue (B)", 0, 255, 0, function(val) GeneratorB = val end)
-
-local palletDropdown = CreateDropdownSection(MainPage, "Pallet ESP")
-local togglePallet = CreateToggle(palletDropdown, "Enable Pallet ESP", false, function(state) PalletESPEnabled = state end)
-local sliderPR = CreateSlider(palletDropdown, "Color: Red (R)", 0, 255, 255, function(val) PalletR = val end)
-local sliderPG = CreateSlider(palletDropdown, "Color: Green (G)", 0, 255, 128, function(val) PalletG = val end)
-local sliderPB = CreateSlider(palletDropdown, "Color: Blue (B)", 0, 255, 0, function(val) PalletB = val end)
-
 -- ==================================
--- VISUAL & MISC TABS
+-- VISUAL TAB (FLASHLIGHT)
 -- ==================================
 local flashDropdown = CreateDropdownSection(VisualPage, "Custom Flashlight")
 local toggleFlashlight = CreateToggle(flashDropdown, "Enable Flashlight", false, function(state) FlashlightEnabled = state end)
@@ -490,16 +473,21 @@ local sliderFlashR = CreateSlider(flashDropdown, "Color: Red (R)", 0, 255, 255, 
 local sliderFlashG = CreateSlider(flashDropdown, "Color: Green (G)", 0, 255, 255, function(val) FlashG = val end)
 local sliderFlashB = CreateSlider(flashDropdown, "Color: Blue (B)", 0, 255, 255, function(val) FlashB = val end)
 
+-- ==================================
+-- MISC TAB
+-- ==================================
 local toggleFOVSet = CreateToggle(MiscPage, "Enable FOV Changer", false, function(state) FOVEnabled = state end)
 local sliderSet = CreateSlider(MiscPage, "FOV Changer Value", 70, 120, 70, function(val) currentFOV = val end)
 local toggleSpeedSet = CreateToggle(MiscPage, "Enable Speedhack", false, function(state) SpeedhackEnabled = state end)
 local sliderSpeedSet = CreateSlider(MiscPage, "WalkSpeed Value", 16, 150, 32, function(val) SpeedhackValue = val end)
 
 -- ==================================
--- CONFIG SYSTEM
+-- FULL CONFIG SYSTEM
 -- ==================================
 local configFolder = "EssentialConfigs"
-pcall(function() if makefolder and not isfolder(configFolder) then makefolder(configFolder) end end)
+pcall(function()
+    if makefolder and not isfolder(configFolder) then makefolder(configFolder) end
+end)
 
 local function GetConfigs()
     local files = {}
@@ -517,31 +505,28 @@ end
 local CurrentConfigName = ""
 local SetConfigNameText = CreateInput(ConfigPage, "Enter Config Name...", function(val) CurrentConfigName = val end)
 local StatusLabel = CreateLabel(ConfigPage, "Status: Ready")
-local ConfigListSection = CreateDropdownSection(ConfigPage, "Available Configs ▼")
 
-local function RefreshConfigList()
-    for _, child in ipairs(ConfigListSection:GetChildren()) do
-        if child:IsA("TextButton") and child.Name == "CfgFileBtn" then child:Destroy() end
-    end
-    for _, cfgName in ipairs(GetConfigs()) do
-        local btn = CreateButton(ConfigListSection, cfgName, BgDark, function()
-            SetConfigNameText(cfgName)
-            StatusLabel("Status: Selected '" .. cfgName .. "'")
-        end)
-        btn.Name = "CfgFileBtn"
-    end
-end
-
+-- Кнопки действий перенесены наверх, перед выпадающим списком (перекрашены в серый цвет)
 CreateButton(ConfigPage, "Save Config", BgElement, function()
-    if CurrentConfigName == "" or CurrentConfigName:match("^%s*$") then StatusLabel("Status: Error - Name cannot be empty!") return end
+    if CurrentConfigName == "" or CurrentConfigName:match("^%s*$") then
+        StatusLabel("Status: Error - Name cannot be empty!") return
+    end
+    
+    local files = GetConfigs()
+    local exists = false
+    for _, f in ipairs(files) do if f == CurrentConfigName then exists = true break end end
+    
+    if not exists and #files >= 5 then
+        StatusLabel("Status: Error - Limit reached (Max 5 configs)!") return
+    end
+    
     local data = {
         ManiacESP = ManiacESPEnabled, MR = ManiacR, MG = ManiacG, MB = ManiacB,
         SurvESP = SurvivorESPEnabled, SR = SurvivorR, SG = SurvivorG, SB = SurvivorB,
-        GenESP = GeneratorESPEnabled, GR = GeneratorR, GG = GeneratorG, GB = GeneratorB,
-        PalletESP = PalletESPEnabled, PR = PalletR, PG = PalletG, PB = PalletB,
         FOVOn = FOVEnabled, FOV = currentFOV, Speedhack = SpeedhackEnabled, WalkSpeed = SpeedhackValue,
         FlashOn = FlashlightEnabled, FRange = FlashRange, FR = FlashR, FG = FlashG, FB = FlashB
     }
+    
     pcall(function()
         if writefile then
             writefile(configFolder .. "/" .. CurrentConfigName .. ".json", HttpService:JSONEncode(data))
@@ -554,127 +539,107 @@ end)
 CreateButton(ConfigPage, "Load Config", BgElement, function()
     if CurrentConfigName == "" then return end
     local path = configFolder .. "/" .. CurrentConfigName .. ".json"
+    
     pcall(function()
         if readfile and isfile and isfile(path) then
             local data = HttpService:JSONDecode(readfile(path))
             if type(data) == "table" then
-                toggleManiac(data.ManiacESP or false) sliderMR(data.MR or 239) sliderMG(data.MG or 68) sliderMB(data.MB or 68)
-                toggleSurvivor(data.SurvESP or false) sliderSR(data.SR or 34) sliderSG(data.SG or 197) sliderSB(data.SB or 94)
-                toggleGenerator(data.GenESP or false) sliderGR(data.GR or 255) sliderGG(data.GG or 255) sliderGB(data.GB or 0)
-                togglePallet(data.PalletESP or false) sliderPR(data.PR or 255) sliderPG(data.PG or 128) sliderPB(data.PB or 0)
+                toggleManiac(data.ManiacESP or false)
+                sliderMR(data.MR or 239) sliderMG(data.MG or 68) sliderMB(data.MB or 68)
+                
+                toggleSurvivor(data.SurvESP or false)
+                sliderSR(data.SR or 34) sliderSG(data.SG or 197) sliderSB(data.SB or 94)
+                
                 toggleFOVSet(data.FOVOn or false) sliderSet(data.FOV or 70)
                 toggleSpeedSet(data.Speedhack or false) sliderSpeedSet(data.WalkSpeed or 32)
-                toggleFlashlight(data.FlashOn or false) sliderFlashRange(data.FRange or 60) sliderFlashR(data.FR or 255) sliderFlashG(data.FG or 255) sliderFlashB(data.FB or 255)
+                toggleFlashlight(data.FlashOn or false) sliderFlashRange(data.FRange or 60)
+                sliderFlashR(data.FR or 255) sliderFlashG(data.FG or 255) sliderFlashB(data.FB or 255)
+                
                 StatusLabel("Status: Loaded '" .. CurrentConfigName .. "'!")
             end
+        else
+            StatusLabel("Status: Error - Config not found!")
         end
     end)
 end)
 
 CreateButton(ConfigPage, "Delete Config", BgElement, function()
     if CurrentConfigName == "" then return end
+    local path = configFolder .. "/" .. CurrentConfigName .. ".json"
+    
     pcall(function()
-        if delfile and isfile and isfile(configFolder .. "/" .. CurrentConfigName .. ".json") then
-            delfile(configFolder .. "/" .. CurrentConfigName .. ".json")
-            StatusLabel("Status: Deleted!")
+        if delfile and isfile and isfile(path) then
+            delfile(path)
+            StatusLabel("Status: Deleted '" .. CurrentConfigName .. "'!")
             SetConfigNameText("")
             RefreshConfigList()
+        else
+            StatusLabel("Status: Error - Config not found!")
         end
     end)
 end)
 
+-- Выпадающий список сохраненных конфигов
+local ConfigListSection = CreateDropdownSection(ConfigPage, "Available Configs ▼")
+
+function RefreshConfigList()
+    for _, child in ipairs(ConfigListSection:GetChildren()) do
+        if child:IsA("TextButton") and child.Name == "CfgFileBtn" then 
+            child:Destroy() 
+        end
+    end
+    
+    local files = GetConfigs()
+    for _, cfgName in ipairs(files) do
+        local btn = CreateButton(ConfigListSection, cfgName, BgDark, function()
+            SetConfigNameText(cfgName)
+            StatusLabel("Status: Selected '" .. cfgName .. "'")
+        end)
+        btn.Name = "CfgFileBtn"
+    end
+end
+
+-- Загружаем список при старте
 RefreshConfigList()
 
+-- Разделитель и кнопка Unload
 local sep = Instance.new("Frame", ConfigPage)
 sep.Size = UDim2.new(1, 0, 0, 1)
 sep.BackgroundColor3 = Color3.fromRGB(35, 35, 38)
 sep.BorderSizePixel = 0
-
--- ==================================
--- BACKGROUND MAP SCANNER (Fixes Crashes)
--- ==================================
--- Сканирование вынесено из RenderStepped, чтобы не лагала игра!
-task.spawn(function()
-    while true do
-        task.wait(3) -- Проверяем карту раз в 3 секунды
-        
-        if GeneratorESPEnabled or PalletESPEnabled then
-            local tempGen = {}
-            local tempPallet = {}
-            local scanCount = 0
-            
-            local descendants = workspace:GetDescendants()
-            for i = 1, #descendants do
-                local v = descendants[i]
-                if v:IsA("Model") then
-                    local name = string.lower(v.Name)
-                    -- Жесткая проверка имен, чтобы не подсвечивать мусорные пропы и не перегружать память
-                    if GeneratorESPEnabled and (string.match(name, "generator") or name == "gen") then
-                        table.insert(tempGen, v)
-                    elseif PalletESPEnabled and string.match(name, "pallet") then
-                        table.insert(tempPallet, v)
-                    end
-                end
-                
-                -- Микро-пауза каждые 500 объектов, чтобы игра не зависала (Анти-краш)
-                scanCount = scanCount + 1
-                if scanCount % 500 == 0 then task.wait() end
-            end
-            
-            trackedGenerators = tempGen
-            trackedPallets = tempPallet
-        end
-    end
-end)
-
-local function ClearMapESP(targetType)
-    if targetType == "Gen" or targetType == "All" then
-        for _, gen in ipairs(trackedGenerators) do
-            if gen and gen.Parent then
-                local h = gen:FindFirstChild("EssentialGenESP")
-                if h then h:Destroy() end
-            end
-        end
-        if targetType == "Gen" then table.clear(trackedGenerators) end
-    end
-    if targetType == "Pallet" or targetType == "All" then
-        for _, pallet in ipairs(trackedPallets) do
-            if pallet and pallet.Parent then
-                local h = pallet:FindFirstChild("EssentialPalletESP")
-                if h then h:Destroy() end
-            end
-        end
-        if targetType == "Pallet" then table.clear(trackedPallets) end
-    end
-end
 
 local function UnloadScript()
     for _, conn in ipairs(connections) do if conn then conn:Disconnect() end end
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character and p.Character:FindFirstChild("EssentialESP") then p.Character.EssentialESP:Destroy() end
     end
-    ClearMapESP("All")
     if currentLight then currentLight:Destroy() end
     if workspace.CurrentCamera then workspace.CurrentCamera.FieldOfView = 70 end
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.WalkSpeed = 16 end
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = 16
+    end
     ScreenGui:Destroy()
 end
-
+-- Кнопка Unload акцентным цветом
 CreateButton(ConfigPage, "Unload Script", AccentColor, UnloadScript)
 
 -- ==================================
--- MAIN RENDER LOOP
+-- CHEAT LOGIC LOOP
 -- ==================================
 table.insert(connections, RunService.RenderStepped:Connect(function()
-    -- FOV
     if workspace.CurrentCamera then
-        workspace.CurrentCamera.FieldOfView = FOVEnabled and currentFOV or 70
+        if FOVEnabled then
+            workspace.CurrentCamera.FieldOfView = currentFOV
+        else
+            workspace.CurrentCamera.FieldOfView = 70
+        end
     end
 
-    -- Speedhack & Flashlight
     if LocalPlayer.Character then
         local humanoid = LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
-        if humanoid and SpeedhackEnabled then humanoid.WalkSpeed = SpeedhackValue end
+        if humanoid and SpeedhackEnabled then
+            humanoid.WalkSpeed = SpeedhackValue
+        end
         
         local rootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if FlashlightEnabled and rootPart then
@@ -689,53 +654,13 @@ table.insert(connections, RunService.RenderStepped:Connect(function()
             currentLight.Color = Color3.fromRGB(FlashR, FlashG, FlashB)
             currentLight.Range = FlashRange
         else
-            if currentLight then currentLight:Destroy() currentLight = nil end
-        end
-    end
-
-    -- Генераторы
-    if GeneratorESPEnabled then
-        for _, gen in ipairs(trackedGenerators) do
-            if gen and gen.Parent then
-                local highlight = gen:FindFirstChild("EssentialGenESP")
-                if not highlight then
-                    highlight = Instance.new("Highlight")
-                    highlight.Name = "EssentialGenESP"
-                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-                    highlight.FillTransparency = 0.5
-                    highlight.OutlineTransparency = 0.2
-                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    highlight.Parent = gen
-                end
-                highlight.FillColor = Color3.fromRGB(GeneratorR, GeneratorG, GeneratorB)
+            if currentLight then
+                currentLight:Destroy()
+                currentLight = nil
             end
         end
-    else
-        ClearMapESP("Gen")
     end
 
-    -- Палетки
-    if PalletESPEnabled then
-        for _, pallet in ipairs(trackedPallets) do
-            if pallet and pallet.Parent then
-                local highlight = pallet:FindFirstChild("EssentialPalletESP")
-                if not highlight then
-                    highlight = Instance.new("Highlight")
-                    highlight.Name = "EssentialPalletESP"
-                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-                    highlight.FillTransparency = 0.5
-                    highlight.OutlineTransparency = 0.2
-                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    highlight.Parent = pallet
-                end
-                highlight.FillColor = Color3.fromRGB(PalletR, PalletG, PalletB)
-            end
-        end
-    else
-        ClearMapESP("Pallet")
-    end
-
-    -- Игроки и Маньяк
     local function isPlayerManiac(player)
         if not player or not player.Character then return false end
         if player.Team and (string.find(string.lower(player.Team.Name), "killer") or string.find(string.lower(player.Team.Name), "maniac")) then return true end
@@ -752,7 +677,8 @@ table.insert(connections, RunService.RenderStepped:Connect(function()
             end
             return false
         end
-        if checkItems(player.Character) or checkItems(player:FindFirstChild("Backpack")) then return true end
+        if checkItems(player.Character) then return true end
+        if checkItems(player:FindFirstChild("Backpack")) then return true end
         
         local hum = player.Character:FindFirstChild("Humanoid")
         if hum and hum.MaxHealth > 100 and hum.MaxHealth < 9999 then return true end
@@ -763,6 +689,7 @@ table.insert(connections, RunService.RenderStepped:Connect(function()
         if player ~= LocalPlayer and player.Character then
             local isManiac = isPlayerManiac(player)
             local highlight = player.Character:FindFirstChild("EssentialESP")
+            
             local shouldHighlight = false
             local highlightColor = Color3.fromRGB(255, 255, 255)
             
