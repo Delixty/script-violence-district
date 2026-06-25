@@ -1,0 +1,1563 @@
+-- Essential GUI - Stable + NOCLIP + CUSTOM SKYBOX (Weather Lock) + ESSENTIAL HUD
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+
+local CoreGui
+pcall(function() CoreGui = game:GetService("CoreGui") end)
+
+local LocalPlayer = Players.LocalPlayer
+local connections = {}
+
+-- Настройки по умолчанию
+local ManiacESPEnabled = false
+local ManiacR, ManiacG, ManiacB = 239, 68, 68
+
+local SurvivorESPEnabled = false
+local SurvivorR, SurvivorG, SurvivorB = 34, 197, 94
+
+local GeneratorESPEnabled = false
+local GeneratorR, GeneratorG, GeneratorB = 255, 255, 0
+
+local PalletESPEnabled = false
+local PalletR, PalletG, PalletB = 255, 128, 0
+
+local FOVEnabled = false
+local currentFOV = 70
+local SpeedhackEnabled = false
+local SpeedhackValue = 32
+
+local FlashlightEnabled = false
+local FlashR, FlashG, FlashB = 255, 255, 255
+local FlashRange = 60
+local currentLight = nil
+
+-- NOCLIP НАСТРОЙКИ
+local NoclipEnabled = false
+local noclipOriginalCollide = {}
+local noclipConnection = nil
+
+-- CUSTOM SKYBOX НАСТРОЙКИ
+local SkyboxEnabled = false
+local SkyBrightness = 50
+local SkyExposure = 50
+local SkyR, SkyG, SkyB = 100, 160, 255
+local HorR, HorG, HorB = 200, 220, 255
+local CurrentPreset = "Default"
+local DefaultSky = nil
+local CustomSky = nil
+local DefaultLighting = {}
+local _skyboxApplying = false
+local skyboxGuardConnections = {}
+
+-- Настройки Sky-объекта (StarCount, Sun/Moon size, CelestialBodiesShown)
+local SkySettings = {
+    StarCount = 1000,
+    SunAngularSize = 11,
+    MoonAngularSize = 11,
+    CelestialBodiesShown = true,
+}
+
+local trackedGenerators = {}
+local trackedPallets = {}
+
+local MAX_ESP_DISTANCE = 100
+
+-- Цветовая палитра интерфейса
+local AccentColor = Color3.fromRGB(151, 71, 255) 
+local BgMain = Color3.fromRGB(14, 14, 15)
+local BgHeader = Color3.fromRGB(20, 20, 21)
+local BgSidebar = Color3.fromRGB(17, 17, 18)
+local BgElement = Color3.fromRGB(24, 24, 26)
+local BgDark = Color3.fromRGB(10, 10, 11)
+local TextColor = Color3.fromRGB(235, 235, 240)
+local TextMuted = Color3.fromRGB(140, 140, 145)
+
+-- Инициализация ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EssentialUI"
+ScreenGui.ResetOnSpawn = false
+if CoreGui then
+    pcall(function() ScreenGui.Parent = CoreGui end)
+end
+if not ScreenGui.Parent then 
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") 
+end
+
+-- Главное окно
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 520, 0, 370)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.BackgroundColor3 = BgMain
+MainFrame.BorderSizePixel = 0
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Color = Color3.fromRGB(35, 35, 38)
+MainStroke.Thickness = 1.2
+
+local MenuScale = Instance.new("UIScale", MainFrame)
+MenuScale.Scale = 1
+
+-- Шапка (Header)
+local Header = Instance.new("Frame", MainFrame)
+Header.Size = UDim2.new(1, 0, 0, 42)
+Header.BackgroundColor3 = BgHeader
+Header.BorderSizePixel = 0
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
+
+local HeaderBottom = Instance.new("Frame", Header)
+HeaderBottom.Size = UDim2.new(1, 0, 0, 10)
+HeaderBottom.Position = UDim2.new(0, 0, 1, -10)
+HeaderBottom.BackgroundColor3 = BgHeader
+HeaderBottom.BorderSizePixel = 0
+
+local Title = Instance.new("TextLabel", Header)
+Title.Size = UDim2.new(1, -30, 1, 0)
+Title.Position = UDim2.new(0, 16, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Essential"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Логика перетаскивания (Drag)
+local dragging, dragInput, dragStart, startPos
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+Header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
+end)
+table.insert(connections, UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end))
+table.insert(connections, UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end))
+
+-- Открытие/Закрытие на RightShift
+local isMenuOpen = true
+local tweenScale
+local tweenStyleIn = TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+local tweenStyleOut = TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+
+table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightShift then
+        isMenuOpen = not isMenuOpen
+        if tweenScale then tweenScale:Cancel() end
+        
+        if isMenuOpen then
+            MainFrame.Visible = true
+            MenuScale.Scale = 0.85
+            tweenScale = TweenService:Create(MenuScale, tweenStyleIn, {Scale = 1})
+            tweenScale:Play()
+        else
+            tweenScale = TweenService:Create(MenuScale, tweenStyleOut, {Scale = 0.85})
+            tweenScale:Play()
+            task.delay(0.25, function()
+                if not isMenuOpen then MainFrame.Visible = false end
+            end)
+        end
+    end
+end))
+
+-- Основная рабочая область
+local Body = Instance.new("Frame", MainFrame)
+Body.Size = UDim2.new(1, 0, 1, -42)
+Body.Position = UDim2.new(0, 0, 0, 42)
+Body.BackgroundTransparency = 1
+
+local Sidebar = Instance.new("Frame", Body)
+Sidebar.Size = UDim2.new(0, 140, 1, 0)
+Sidebar.BackgroundColor3 = BgSidebar
+Sidebar.BorderSizePixel = 0
+Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 10)
+
+local TabContainer = Instance.new("Frame", Sidebar)
+TabContainer.Size = UDim2.new(1, 0, 1, 0)
+TabContainer.BackgroundTransparency = 1
+local TabListLayout = Instance.new("UIListLayout", TabContainer)
+TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+TabListLayout.Padding = UDim.new(0, 5)
+local TabPadding = Instance.new("UIPadding", TabContainer)
+TabPadding.PaddingTop = UDim.new(0, 12)
+TabPadding.PaddingLeft = UDim.new(0, 10)
+TabPadding.PaddingRight = UDim.new(0, 10)
+
+local ContentArea = Instance.new("Frame", Body)
+ContentArea.Size = UDim2.new(1, -140, 1, 0)
+ContentArea.Position = UDim2.new(0, 140, 0, 0)
+ContentArea.BackgroundTransparency = 1
+local ContentPadding = Instance.new("UIPadding", ContentArea)
+ContentPadding.PaddingTop = UDim.new(0, 12)
+ContentPadding.PaddingLeft = UDim.new(0, 12)
+ContentPadding.PaddingRight = UDim.new(0, 12)
+ContentPadding.PaddingBottom = UDim.new(0, 12)
+
+-- ============================================================
+-- ФУНКЦИИ БИБЛИОТЕКИ UI
+-- ============================================================
+local tabs = {}
+local function CreateTab(name)
+    local btn = Instance.new("TextButton", TabContainer)
+    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.BackgroundColor3 = AccentColor
+    btn.BackgroundTransparency = 1
+    btn.Text = name
+    btn.TextColor3 = TextMuted
+    btn.TextSize = 13
+    btn.Font = Enum.Font.GothamSemibold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    local page = Instance.new("ScrollingFrame", ContentArea)
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 65)
+    page.BorderSizePixel = 0
+    page.Visible = false
+    
+    local layout = Instance.new("UIListLayout", page)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 8)
+    
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 5)
+    end)
+
+    table.insert(tabs, {btn = btn, page = page})
+    
+    btn.MouseButton1Click:Connect(function()
+        for _, t in pairs(tabs) do
+            t.page.Visible = false
+            TweenService:Create(t.btn, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1, TextColor3 = TextMuted}):Play()
+        end
+        page.Visible = true
+        TweenService:Create(btn, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.88, TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+    end)
+    return page, btn
+end
+
+local function CreateToggle(parent, text, default, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(1, 0, 0, 42)
+    frame.BackgroundColor3 = BgElement
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+    
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = Color3.fromRGB(40, 40, 42)
+    stroke.Thickness = 1
+    
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1, -70, 1, 0)
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = TextColor
+    label.TextSize = 13
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(0, 36, 0, 18)
+    btn.Position = UDim2.new(1, -48, 0.5, -9)
+    btn.BackgroundColor3 = default and AccentColor or Color3.fromRGB(45, 45, 48)
+    btn.Text = ""
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+    
+    local circle = Instance.new("Frame", btn)
+    circle.Size = UDim2.new(0, 12, 0, 12)
+    circle.Position = UDim2.new(0, default and 21 or 3, 0.5, -6)
+    circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+    
+    local state = default
+    local function setState(newState)
+        state = newState
+        local circlePos = state and UDim2.new(0, 21, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)
+        local bgColor = state and AccentColor or Color3.fromRGB(45, 45, 48)
+        
+        TweenService:Create(circle, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = circlePos}):Play()
+        TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = bgColor}):Play()
+        
+        callback(state)
+    end
+    btn.MouseButton1Click:Connect(function() setState(not state) end)
+    return setState
+end
+
+local function CreateSlider(parent, text, min, max, default, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(1, 0, 0, 54)
+    frame.BackgroundColor3 = BgElement
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+    Instance.new("UIStroke", frame).Color = Color3.fromRGB(40, 40, 42)
+    
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1, -20, 0, 24)
+    label.Position = UDim2.new(0, 12, 0, 5)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = TextColor
+    label.TextSize = 13
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local valLabel = Instance.new("TextLabel", frame)
+    valLabel.Size = UDim2.new(0, 38, 0, 18)
+    valLabel.Position = UDim2.new(1, -50, 0, 8)
+    valLabel.BackgroundColor3 = BgDark
+    valLabel.Text = tostring(default)
+    valLabel.TextColor3 = Color3.fromRGB(200, 200, 205)
+    valLabel.TextSize = 11
+    valLabel.Font = Enum.Font.Gotham
+    Instance.new("UICorner", valLabel).CornerRadius = UDim.new(0, 4)
+    
+    local bar = Instance.new("Frame", frame)
+    bar.Size = UDim2.new(1, -24, 0, 5)
+    bar.Position = UDim2.new(0, 12, 0, 38)
+    bar.BackgroundColor3 = BgDark
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+    
+    local fill = Instance.new("Frame", bar)
+    fill.Size = UDim2.new((default - min)/(max - min), 0, 1, 0)
+    fill.BackgroundColor3 = AccentColor
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+    
+    local btn = Instance.new("TextButton", bar)
+    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    
+    local dragging = false
+    btn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end end)
+    table.insert(connections, UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end))
+    
+    local function setVal(val)
+        valLabel.Text = tostring(val)
+        fill.Size = UDim2.new((val - min)/(max - min), 0, 1, 0)
+        callback(val)
+    end
+    
+    table.insert(connections, RunService.RenderStepped:Connect(function()
+        if dragging then
+            local mouseX = UserInputService:GetMouseLocation().X
+            local barX = bar.AbsolutePosition.X
+            local barSize = bar.AbsoluteSize.X
+            local percent = math.clamp((mouseX - barX) / barSize, 0, 1)
+            local val = math.floor(min + (max - min) * percent)
+            setVal(val)
+        end
+    end))
+    return setVal
+end
+
+local function CreateButton(parent, text, bgCol, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.BackgroundColor3 = bgCol or BgElement
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 13
+    btn.Font = Enum.Font.GothamSemibold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    Instance.new("UIStroke", btn).Color = Color3.fromRGB(40, 40, 42)
+    
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local function CreateInput(parent, placeholder, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(1, 0, 0, 42)
+    frame.BackgroundColor3 = BgElement
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+    Instance.new("UIStroke", frame).Color = Color3.fromRGB(40, 40, 42)
+    
+    local box = Instance.new("TextBox", frame)
+    box.Size = UDim2.new(1, -24, 1, 0)
+    box.Position = UDim2.new(0, 12, 0, 0)
+    box.BackgroundTransparency = 1
+    box.Text = ""
+    box.PlaceholderText = placeholder
+    box.TextColor3 = TextColor
+    box.PlaceholderColor3 = TextMuted
+    box.TextSize = 13
+    box.Font = Enum.Font.Gotham
+    box.TextXAlignment = Enum.TextXAlignment.Left
+    box.ClearTextOnFocus = false
+    
+    box.FocusLost:Connect(function() callback(box.Text) end)
+    
+    return function(txt)
+        box.Text = txt
+        callback(txt)
+    end
+end
+
+local function CreateLabel(parent, defaultText)
+    local label = Instance.new("TextLabel", parent)
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.BackgroundTransparency = 1
+    label.Text = defaultText
+    label.TextColor3 = TextMuted
+    label.TextSize = 12
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    return function(txt) label.Text = txt end
+end
+
+local function CreateDropdownSection(parent, titleText)
+    local mainFrame = Instance.new("Frame", parent)
+    mainFrame.Size = UDim2.new(1, 0, 0, 42)
+    mainFrame.BackgroundColor3 = BgElement
+    mainFrame.ClipsDescendants = true
+    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 6)
+    mainFrame.BorderSizePixel = 0
+    Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(40, 40, 42)
+    
+    local triggerBtn = Instance.new("TextButton", mainFrame)
+    triggerBtn.Size = UDim2.new(1, 0, 0, 42)
+    triggerBtn.BackgroundTransparency = 1
+    triggerBtn.Text = ""
+    
+    local label = Instance.new("TextLabel", mainFrame)
+    label.Size = UDim2.new(1, -60, 0, 42)
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = titleText
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamBold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local arrow = Instance.new("TextLabel", mainFrame)
+    arrow.Size = UDim2.new(0, 40, 0, 42)
+    arrow.Position = UDim2.new(1, -45, 0, 0)
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▼"
+    arrow.TextColor3 = TextColor
+    arrow.TextSize = 18
+    arrow.Font = Enum.Font.GothamBold
+    
+    local container = Instance.new("Frame", mainFrame)
+    container.Position = UDim2.new(0, 10, 0, 46)
+    container.Size = UDim2.new(1, -20, 0, 0)
+    container.BackgroundTransparency = 1
+    
+    local list = Instance.new("UIListLayout", container)
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.Padding = UDim.new(0, 6)
+    
+    local isOpen = false
+    triggerBtn.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        local targetHeight = isOpen and (list.AbsoluteContentSize.Y + 56) or 42
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
+        arrow.Text = isOpen and "▲" or "▼"
+        arrow.TextColor3 = isOpen and AccentColor or TextColor
+    end)
+    
+    list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        if isOpen then
+            mainFrame.Size = UDim2.new(1, 0, 0, list.AbsoluteContentSize.Y + 56)
+        end
+        container.Size = UDim2.new(1, -20, 0, list.AbsoluteContentSize.Y)
+    end)
+    
+    return container
+end
+
+local function CreateDropdown(parent, text, options, default, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(1, 0, 0, 42)
+    frame.BackgroundColor3 = BgElement
+    frame.ClipsDescendants = true
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+    Instance.new("UIStroke", frame).Color = Color3.fromRGB(40, 40, 42)
+
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(0.5, 0, 0, 42)
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = TextColor
+    label.TextSize = 13
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+
+    local selector = Instance.new("TextButton", frame)
+    selector.Size = UDim2.new(0, 130, 0, 26)
+    selector.Position = UDim2.new(1, -142, 0, 8)
+    selector.BackgroundColor3 = BgDark
+    selector.Text = "  " .. tostring(default)
+    selector.TextColor3 = Color3.fromRGB(200, 200, 205)
+    selector.TextSize = 12
+    selector.Font = Enum.Font.GothamSemibold
+    selector.TextXAlignment = Enum.TextXAlignment.Left
+    Instance.new("UICorner", selector).CornerRadius = UDim.new(0, 4)
+
+    local arrow = Instance.new("TextLabel", selector)
+    arrow.Size = UDim2.new(0, 20, 1, 0)
+    arrow.Position = UDim2.new(1, -22, 0, 0)
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▼"
+    arrow.TextColor3 = TextMuted
+    arrow.TextSize = 10
+    arrow.Font = Enum.Font.GothamBold
+
+    local optionHolder = Instance.new("Frame", frame)
+    optionHolder.Position = UDim2.new(0, 12, 0, 42)
+    optionHolder.Size = UDim2.new(1, -24, 0, 0)
+    optionHolder.BackgroundTransparency = 1
+    local optLayout = Instance.new("UIListLayout", optionHolder)
+    optLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    optLayout.Padding = UDim.new(0, 4)
+
+    local isOpen = false
+    local currentValue = default
+
+    local function setValue(val)
+        currentValue = val
+        selector.Text = "  " .. tostring(val)
+        callback(val)
+    end
+
+    for _, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton", optionHolder)
+        optBtn.Size = UDim2.new(1, 0, 0, 26)
+        optBtn.BackgroundColor3 = BgDark
+        optBtn.Text = tostring(opt)
+        optBtn.TextColor3 = TextColor
+        optBtn.TextSize = 12
+        optBtn.Font = Enum.Font.Gotham
+        Instance.new("UICorner", optBtn).CornerRadius = UDim.new(0, 4)
+
+        optBtn.MouseEnter:Connect(function()
+            TweenService:Create(optBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = AccentColor}):Play()
+        end)
+        optBtn.MouseLeave:Connect(function()
+            TweenService:Create(optBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = BgDark}):Play()
+        end)
+
+        optBtn.MouseButton1Click:Connect(function()
+            setValue(opt)
+            isOpen = false
+            arrow.Text = "▼"
+            TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42)}):Play()
+        end)
+    end
+
+    selector.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        arrow.Text = isOpen and "▲" or "▼"
+        local targetH = isOpen and (42 + optLayout.AbsoluteContentSize.Y + 8) or 42
+        TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, targetH)}):Play()
+    end)
+
+    return setValue
+end
+
+-- ==================================
+-- СОЗДАНИЕ ВКЛАДОК
+-- ==================================
+local MainPage, MainBtn = CreateTab("Main")
+local VisualPage, VisualBtn = CreateTab("Visual")
+local MiscPage, MiscBtn = CreateTab("Misc")
+local ConfigPage, ConfigBtn = CreateTab("Config")
+
+MainBtn.BackgroundTransparency = 0.88
+MainBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MainPage.Visible = true
+
+-- ============================================================
+-- ВСПРАВОЧНАЯ ФУНКЦИЯ isPlayerManiac (перенесена вверх для HUD и ESP)
+-- ============================================================
+local function isPlayerManiac(player)
+    if not player or not player.Character then return false end
+    if player.Team and (string.find(string.lower(player.Team.Name), "killer") or string.find(string.lower(player.Team.Name), "maniac")) then return true end
+    local role = player:GetAttribute("Role") or player.Character:GetAttribute("Role")
+    if role and (string.match(string.lower(tostring(role)), "killer") or string.match(string.lower(tostring(role)), "maniac")) then return true end
+    local function checkItems(parent)
+        if not parent then return false end
+        for _, item in ipairs(parent:GetChildren()) do
+            if item:IsA("Tool") then
+                local tName = string.lower(item.Name)
+                if string.find(tName, "spear") or string.find(tName, "knife") or string.find(tName, "bat") or string.find(tName, "weapon") or string.find(tName, "axe") then return true end
+            end
+        end
+        return false
+    end
+    if checkItems(player.Character) or checkItems(player:FindFirstChild("Backpack")) then return true end
+    local hum = player.Character:FindFirstChild("Humanoid")
+    if hum and hum.MaxHealth > 100 and hum.MaxHealth < 9999 then return true end
+    return false
+end
+
+-- ==================================
+-- НАСТРОЙКИ НА ВКЛАДКАХ — MAIN
+-- ==================================
+local maniacDropdown = CreateDropdownSection(MainPage, "Maniac ESP")
+local toggleManiac = CreateToggle(maniacDropdown, "Enable Maniac ESP", false, function(state) ManiacESPEnabled = state end)
+local sliderMR = CreateSlider(maniacDropdown, "Color: Red (R)", 0, 255, 239, function(val) ManiacR = val end)
+local sliderMG = CreateSlider(maniacDropdown, "Color: Green (G)", 0, 255, 68, function(val) ManiacG = val end)
+local sliderMB = CreateSlider(maniacDropdown, "Color: Blue (B)", 0, 255, 68, function(val) ManiacB = val end)
+
+local survivorDropdown = CreateDropdownSection(MainPage, "Survivor ESP")
+local toggleSurvivor = CreateToggle(survivorDropdown, "Enable Survivor ESP", false, function(state) SurvivorESPEnabled = state end)
+local sliderSR = CreateSlider(survivorDropdown, "Color: Red (R)", 0, 255, 34, function(val) SurvivorR = val end)
+local sliderSG = CreateSlider(survivorDropdown, "Color: Green (G)", 0, 255, 197, function(val) SurvivorG = val end)
+local sliderSB = CreateSlider(survivorDropdown, "Color: Blue (B)", 0, 255, 94, function(val) SurvivorB = val end)
+
+local generatorDropdown = CreateDropdownSection(MainPage, "Generator ESP")
+local toggleGenerator = CreateToggle(generatorDropdown, "Enable Generator ESP", false, function(state) GeneratorESPEnabled = state end)
+local sliderGR = CreateSlider(generatorDropdown, "Color: Red (R)", 0, 255, 255, function(val) GeneratorR = val end)
+local sliderGG = CreateSlider(generatorDropdown, "Color: Green (G)", 0, 255, 255, function(val) GeneratorG = val end)
+local sliderGB = CreateSlider(generatorDropdown, "Color: Blue (B)", 0, 255, 0, function(val) GeneratorB = val end)
+
+local palletDropdown = CreateDropdownSection(MainPage, "Pallet ESP")
+local togglePallet = CreateToggle(palletDropdown, "Enable Pallet ESP", false, function(state) PalletESPEnabled = state end)
+local sliderPR = CreateSlider(palletDropdown, "Color: Red (R)", 0, 255, 255, function(val) PalletR = val end)
+local sliderPG = CreateSlider(palletDropdown, "Color: Green (G)", 0, 255, 128, function(val) PalletG = val end)
+local sliderPB = CreateSlider(palletDropdown, "Color: Blue (B)", 0, 255, 0, function(val) PalletB = val end)
+
+-- ==================================
+-- НАСТРОЙКИ НА ВКЛАДКЕ — VISUAL
+-- ==================================
+local flashDropdown = CreateDropdownSection(VisualPage, "Custom Flashlight")
+local toggleFlashlight = CreateToggle(flashDropdown, "Enable Flashlight", false, function(state) FlashlightEnabled = state end)
+local sliderFlashRange = CreateSlider(flashDropdown, "Flashlight Range", 10, 150, 60, function(val) FlashRange = val end)
+local sliderFlashR = CreateSlider(flashDropdown, "Color: Red (R)", 0, 255, 255, function(val) FlashR = val end)
+local sliderFlashG = CreateSlider(flashDropdown, "Color: Green (G)", 0, 255, 255, function(val) FlashG = val end)
+local sliderFlashB = CreateSlider(flashDropdown, "Color: Blue (B)", 0, 255, 255, function(val) FlashB = val end)
+
+-- ============================================================
+-- CUSTOM SKYBOX (WEATHER LOCK)
+-- ============================================================
+local skyboxDropdown = CreateDropdownSection(VisualPage, "Custom Skybox")
+
+DefaultSky = Lighting:FindFirstChildWhichIsA("Sky")
+DefaultLighting = {
+    Brightness = Lighting.Brightness,
+    ExposureCompensation = Lighting.ExposureCompensation,
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    ColorShift_Top = Lighting.ColorShift_Top,
+    ColorShift_Bottom = Lighting.ColorShift_Bottom,
+    ClockTime = Lighting.ClockTime,
+    FogColor = Lighting.FogColor,
+}
+
+local DefaultAtmosphere = Lighting:FindFirstChildWhichIsA("Atmosphere")
+local DefaultAtmosphereProps = nil
+if DefaultAtmosphere then
+    DefaultAtmosphereProps = {
+        Density = DefaultAtmosphere.Density,
+        Offset = DefaultAtmosphere.Offset,
+        Color = DefaultAtmosphere.Color,
+        Decay = DefaultAtmosphere.Decay,
+        Glare = DefaultAtmosphere.Glare,
+        Haze = DefaultAtmosphere.Haze,
+    }
+end
+
+local function GetTargetBrightness()
+    return (SkyBrightness / 100) * 10
+end
+local function GetTargetExposure()
+    return (SkyExposure / 100) * 2 - 1
+end
+local function GetTargetSkyColor()
+    return Color3.fromRGB(SkyR, SkyG, SkyB)
+end
+local function GetTargetHorizonColor()
+    return Color3.fromRGB(HorR, HorG, HorB)
+end
+local function GetTargetAmbient()
+    return Color3.fromRGB(math.floor(SkyR * 0.3), math.floor(SkyG * 0.3), math.floor(SkyB * 0.3))
+end
+
+local function ApplySkybox()
+    if not SkyboxEnabled or _skyboxApplying then return end
+    _skyboxApplying = true
+
+    pcall(function()
+        for _, obj in ipairs(Lighting:GetChildren()) do
+            if obj:IsA("Sky") and obj.Name ~= "EssentialCustomSky" then
+                obj:Destroy()
+            end
+        end
+
+        for _, obj in ipairs(Lighting:GetChildren()) do
+            if obj:IsA("Atmosphere") then
+                obj.Parent = nil
+            end
+        end
+
+        if not CustomSky or not CustomSky.Parent or CustomSky.Parent ~= Lighting then
+            if CustomSky then pcall(function() CustomSky:Destroy() end) end
+            CustomSky = Instance.new("Sky")
+            CustomSky.Name = "EssentialCustomSky"
+            CustomSky.Parent = Lighting
+        end
+
+        CustomSky.StarCount = SkySettings.StarCount
+        CustomSky.SunAngularSize = SkySettings.SunAngularSize
+        CustomSky.MoonAngularSize = SkySettings.MoonAngularSize
+        CustomSky.CelestialBodiesShown = SkySettings.CelestialBodiesShown
+
+        Lighting.Brightness = GetTargetBrightness()
+        Lighting.ExposureCompensation = GetTargetExposure()
+        Lighting.ColorShift_Top = GetTargetSkyColor()
+        Lighting.ColorShift_Bottom = GetTargetHorizonColor()
+        Lighting.OutdoorAmbient = GetTargetHorizonColor()
+        Lighting.FogColor = GetTargetHorizonColor()
+        Lighting.Ambient = GetTargetAmbient()
+    end)
+
+    _skyboxApplying = false
+end
+
+local function ResetSkybox()
+    _skyboxApplying = true
+
+    pcall(function()
+        if CustomSky then
+            pcall(function() CustomSky:Destroy() end)
+            CustomSky = nil
+        end
+        for _, obj in ipairs(Lighting:GetChildren()) do
+            if obj:IsA("Sky") and obj.Name == "EssentialCustomSky" then
+                obj:Destroy()
+            end
+        end
+
+        if DefaultAtmosphere and DefaultAtmosphere.Parent == nil then
+            pcall(function() DefaultAtmosphere.Parent = Lighting end)
+        end
+
+        Lighting.Brightness = DefaultLighting.Brightness
+        Lighting.ExposureCompensation = DefaultLighting.ExposureCompensation
+        Lighting.Ambient = DefaultLighting.Ambient
+        Lighting.OutdoorAmbient = DefaultLighting.OutdoorAmbient
+        Lighting.ColorShift_Top = DefaultLighting.ColorShift_Top
+        Lighting.ColorShift_Bottom = DefaultLighting.ColorShift_Bottom
+        Lighting.ClockTime = DefaultLighting.ClockTime
+        Lighting.FogColor = DefaultLighting.FogColor
+    end)
+
+    _skyboxApplying = false
+end
+
+local function ApplyPreset(preset)
+    CurrentPreset = preset
+
+    if preset == "Default" then
+        ResetSkybox()
+        return
+    end
+
+    local presets = {
+        Day = {
+            skyR = 120, skyG = 180, skyB = 255,
+            horR = 220, horG = 235, horB = 255,
+            bright = 60, exp = 50, clock = 14,
+            starCount = 300, sunSize = 18, moonSize = 11, celestial = true
+        },
+        Sunset = {
+            skyR = 255, skyG = 140, skyB = 60,
+            horR = 255, horG = 200, horB = 120,
+            bright = 40, exp = 65, clock = 17.5,
+            starCount = 700, sunSize = 22, moonSize = 11, celestial = true
+        },
+        Night = {
+            skyR = 15, skyG = 20, skyB = 60,
+            horR = 40, horG = 50, horB = 90,
+            bright = 15, exp = 25, clock = 0,
+            starCount = 3000, sunSize = 0, moonSize = 13, celestial = true
+        },
+        Space = {
+            skyR = 12, skyG = 8, skyB = 40,
+            horR = 55, horG = 25, horB = 95,
+            bright = 5, exp = 12, clock = 0,
+            starCount = 5000, sunSize = 0, moonSize = 0, celestial = false
+        },
+        Purple = {
+            skyR = 90, skyG = 30, skyB = 160,
+            horR = 170, horG = 70, horB = 210,
+            bright = 45, exp = 55, clock = 19,
+            starCount = 1800, sunSize = 8, moonSize = 14, celestial = true
+        },
+    }
+
+    local p = presets[preset]
+    if p then
+        SkyR = p.skyR
+        SkyG = p.skyG
+        SkyB = p.skyB
+        HorR = p.horR
+        HorG = p.horG
+        HorB = p.horB
+        SkyBrightness = p.bright
+        SkyExposure = p.exp
+        if p.clock then Lighting.ClockTime = p.clock end
+
+        SkySettings.StarCount = p.starCount or 1000
+        SkySettings.SunAngularSize = p.sunSize or 11
+        SkySettings.MoonAngularSize = p.moonSize or 11
+        SkySettings.CelestialBodiesShown = p.celestial ~= false
+
+        if skyBrightnessSlider then skyBrightnessSlider(SkyBrightness) end
+        if skyExposureSlider then skyExposureSlider(SkyExposure) end
+        if skyRSlider then skyRSlider(SkyR) end
+        if skyGSlider then skyGSlider(SkyG) end
+        if skyBSlider then skyBSlider(SkyB) end
+        if horRSlider then horRSlider(HorR) end
+        if horGSlider then horGSlider(HorG) end
+        if horBSlider then horBSlider(HorB) end
+    end
+
+    ApplySkybox()
+end
+
+-- ============================================================
+-- WEATHER LOCK — защита от сброса погоды игрой
+-- ============================================================
+local function GuardLightingProp(prop, valueFn)
+    local conn = Lighting:GetPropertyChangedSignal(prop):Connect(function()
+        if SkyboxEnabled and not _skyboxApplying then
+            _skyboxApplying = true
+            pcall(function()
+                Lighting[prop] = valueFn()
+            end)
+            _skyboxApplying = false
+        end
+    end)
+    table.insert(skyboxGuardConnections, conn)
+end
+
+local function ConnectSkyboxGuards()
+    for _, conn in ipairs(skyboxGuardConnections) do
+        if conn then pcall(function() conn:Disconnect() end) end
+    end
+    skyboxGuardConnections = {}
+
+    GuardLightingProp("Brightness", GetTargetBrightness)
+    GuardLightingProp("ExposureCompensation", GetTargetExposure)
+    GuardLightingProp("ColorShift_Top", GetTargetSkyColor)
+    GuardLightingProp("ColorShift_Bottom", GetTargetHorizonColor)
+    GuardLightingProp("OutdoorAmbient", GetTargetHorizonColor)
+    GuardLightingProp("FogColor", GetTargetHorizonColor)
+    GuardLightingProp("Ambient", GetTargetAmbient)
+
+    local childAddedConn = Lighting.ChildAdded:Connect(function(child)
+        if not SkyboxEnabled or _skyboxApplying then return end
+        if child:IsA("Sky") and child.Name ~= "EssentialCustomSky" then
+            task.defer(function()
+                if child and child.Parent then child:Destroy() end
+            end)
+        end
+        if child:IsA("Atmosphere") then
+            task.defer(function()
+                if child and child.Parent then child.Parent = nil end
+            end)
+        end
+    end)
+    table.insert(skyboxGuardConnections, childAddedConn)
+
+    local childRemovedConn = Lighting.ChildRemoved:Connect(function(child)
+        if not SkyboxEnabled or _skyboxApplying then return end
+        if child == CustomSky or (child:IsA("Sky") and child.Name == "EssentialCustomSky") then
+            CustomSky = nil
+            task.defer(function() ApplySkybox() end)
+        end
+    end)
+    table.insert(skyboxGuardConnections, childRemovedConn)
+
+    local weatherControllerNames = {
+        "WeatherController", "TimeController", "EnvironmentController",
+        "DayNightCycle", "WeatherSystem", "LightingController",
+        "SkyController", "WeatherManager", "EnvironmentManager",
+    }
+
+    local function NeutralizeController(obj)
+        if not SkyboxEnabled then return end
+        for _, ctrlName in ipairs(weatherControllerNames) do
+            if obj.Name == ctrlName then
+                pcall(function()
+                    for _, desc in ipairs(obj:GetDescendants()) do
+                        if desc:IsA("Script") or desc:IsA("LocalScript") then
+                            desc.Disabled = true
+                        end
+                    end
+                end)
+                local descConn = obj.DescendantAdded:Connect(function(desc)
+                    if SkyboxEnabled and (desc:IsA("Script") or desc:IsA("LocalScript")) then
+                        task.defer(function() desc.Disabled = true end)
+                    end
+                end)
+                table.insert(skyboxGuardConnections, descConn)
+                break
+            end
+        end
+    end
+
+    for _, obj in ipairs(workspace:GetChildren()) do
+        NeutralizeController(obj)
+    end
+
+    local wsChildConn = workspace.ChildAdded:Connect(function(child)
+        if SkyboxEnabled then
+            NeutralizeController(child)
+            task.delay(0.1, function()
+                if SkyboxEnabled then ApplySkybox() end
+            end)
+        end
+    end)
+    table.insert(skyboxGuardConnections, wsChildConn)
+
+    local heartbeatConn = RunService.Heartbeat:Connect(function()
+        if not SkyboxEnabled or _skyboxApplying then return end
+        local ourSky = Lighting:FindFirstChild("EssentialCustomSky")
+        if not ourSky or not ourSky:IsA("Sky") then
+            CustomSky = nil
+            ApplySkybox()
+            return
+        end
+        for _, obj in ipairs(Lighting:GetChildren()) do
+            if obj:IsA("Sky") and obj.Name ~= "EssentialCustomSky" then
+                pcall(function() obj:Destroy() end)
+            end
+            if obj:IsA("Atmosphere") then
+                pcall(function() obj.Parent = nil end)
+            end
+        end
+    end)
+    table.insert(skyboxGuardConnections, heartbeatConn)
+end
+
+local function DisconnectSkyboxGuards()
+    for _, conn in ipairs(skyboxGuardConnections) do
+        if conn then pcall(function() conn:Disconnect() end) end
+    end
+    skyboxGuardConnections = {}
+end
+
+-- ====== UI ЭЛЕМЕНТЫ SKYBOX ======
+local toggleSky = CreateToggle(skyboxDropdown, "Enable Skybox", false, function(state)
+    SkyboxEnabled = state
+    if state then
+        ConnectSkyboxGuards()
+        ApplyPreset(CurrentPreset)
+    else
+        DisconnectSkyboxGuards()
+        ResetSkybox()
+    end
+end)
+
+local skyBrightnessSlider = CreateSlider(skyboxDropdown, "Brightness", 0, 100, 50, function(v)
+    SkyBrightness = v
+    ApplySkybox()
+end)
+
+local skyExposureSlider = CreateSlider(skyboxDropdown, "Exposure", 0, 100, 50, function(v)
+    SkyExposure = v
+    ApplySkybox()
+end)
+
+local skyRSlider = CreateSlider(skyboxDropdown, "Sky Color Red (R)", 0, 255, 100, function(v) SkyR = v; ApplySkybox() end)
+local skyGSlider = CreateSlider(skyboxDropdown, "Sky Color Green (G)", 0, 255, 160, function(v) SkyG = v; ApplySkybox() end)
+local skyBSlider = CreateSlider(skyboxDropdown, "Sky Color Blue (B)", 0, 255, 255, function(v) SkyB = v; ApplySkybox() end)
+
+local horRSlider = CreateSlider(skyboxDropdown, "Horizon Color Red (R)", 0, 255, 200, function(v) HorR = v; ApplySkybox() end)
+local horGSlider = CreateSlider(skyboxDropdown, "Horizon Color Green (G)", 0, 255, 220, function(v) HorG = v; ApplySkybox() end)
+local horBSlider = CreateSlider(skyboxDropdown, "Horizon Color Blue (B)", 0, 255, 255, function(v) HorB = v; ApplySkybox() end)
+
+local presetDropdown = CreateDropdown(
+    skyboxDropdown,
+    "Skybox Preset",
+    {"Default", "Day", "Sunset", "Night", "Space", "Purple"},
+    "Default",
+    function(selected) ApplyPreset(selected) end
+)
+
+-- ============================================================
+-- ESSENTIAL HUD (VISUAL TAB)
+-- ============================================================
+local hudDropdown = CreateDropdownSection(VisualPage, "Essential HUD")
+
+local HUDEnabled = false
+local HUDFPS = true
+local HUDPing = true
+local HUDKiller = true
+
+local hudContainer = nil
+local hudTitle = nil
+local hudFPS = nil
+local hudPing = nil
+local hudKiller = nil
+local hudUpdateConnection = nil
+
+local function BuildEssentialHUD()
+    if hudContainer then return end
+
+    hudContainer = Instance.new("Frame")
+    hudContainer.Name = "EssentialHUD"
+    hudContainer.AnchorPoint = Vector2.new(0, 0)
+    hudContainer.Position = UDim2.new(0, 16, 0, 16)
+    hudContainer.BackgroundColor3 = BgMain
+    hudContainer.BorderSizePixel = 0
+    hudContainer.AutomaticSize = Enum.AutomaticSize.XY
+    hudContainer.ClipsDescendants = true
+    Instance.new("UICorner", hudContainer).CornerRadius = UDim.new(0, 8)
+    Instance.new("UIStroke", hudContainer).Color = Color3.fromRGB(35, 35, 38)
+    
+    local padding = Instance.new("UIPadding", hudContainer)
+    padding.PaddingTop = UDim.new(0, 10)
+    padding.PaddingBottom = UDim.new(0, 10)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+
+    local listLayout = Instance.new("UIListLayout", hudContainer)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Padding = UDim.new(0, 4)
+
+    -- Title
+    hudTitle = Instance.new("TextLabel", hudContainer)
+    hudTitle.LayoutOrder = 1
+    hudTitle.Size = UDim2.new(0, 130, 0, 18)
+    hudTitle.BackgroundTransparency = 1
+    hudTitle.Text = "Essential"
+    hudTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    hudTitle.TextSize = 13
+    hudTitle.Font = Enum.Font.GothamBold
+    hudTitle.TextXAlignment = Enum.TextXAlignment.Left
+    hudTitle.AutomaticSize = Enum.AutomaticSize.X
+
+    -- FPS
+    hudFPS = Instance.new("TextLabel", hudContainer)
+    hudFPS.LayoutOrder = 2
+    hudFPS.Size = UDim2.new(0, 130, 0, 18)
+    hudFPS.BackgroundTransparency = 1
+    hudFPS.Text = "FPS: --"
+    hudFPS.TextColor3 = TextColor
+    hudFPS.TextSize = 12
+    hudFPS.Font = Enum.Font.GothamSemibold
+    hudFPS.TextXAlignment = Enum.TextXAlignment.Left
+    hudFPS.AutomaticSize = Enum.AutomaticSize.X
+
+    -- Ping
+    hudPing = Instance.new("TextLabel", hudContainer)
+    hudPing.LayoutOrder = 3
+    hudPing.Size = UDim2.new(0, 130, 0, 18)
+    hudPing.BackgroundTransparency = 1
+    hudPing.Text = "Ping: -- ms"
+    hudPing.TextColor3 = TextColor
+    hudPing.TextSize = 12
+    hudPing.Font = Enum.Font.GothamSemibold
+    hudPing.TextXAlignment = Enum.TextXAlignment.Left
+    hudPing.AutomaticSize = Enum.AutomaticSize.X
+
+    -- Killer
+    hudKiller = Instance.new("TextLabel", hudContainer)
+    hudKiller.LayoutOrder = 4
+    hudKiller.Size = UDim2.new(0, 130, 0, 18)
+    hudKiller.BackgroundTransparency = 1
+    hudKiller.Text = "Killer: Unknown"
+    hudKiller.TextColor3 = TextColor
+    hudKiller.TextSize = 12
+    hudKiller.Font = Enum.Font.GothamSemibold
+    hudKiller.TextXAlignment = Enum.TextXAlignment.Left
+    hudKiller.AutomaticSize = Enum.AutomaticSize.X
+
+    hudContainer.Parent = ScreenGui
+end
+
+local function RefreshHUDVisibility()
+    if not hudContainer then return end
+    hudContainer.Visible = HUDEnabled
+    hudFPS.Visible = HUDFPS
+    hudPing.Visible = HUDPing
+    hudKiller.Visible = HUDKiller
+end
+
+local function StartEssentialHUDLoop()
+    if hudUpdateConnection then pcall(function() hudUpdateConnection:Disconnect() end); hudUpdateConnection = nil end
+
+    local lastFPSRefresh = 0
+    local lastPingRefresh = 0
+    local lastKillerRefresh = 0
+    local frameCount = 0
+    local frameTimeSum = 0
+
+    hudUpdateConnection = RunService.RenderStepped:Connect(function(delta)
+        if not HUDEnabled or not hudContainer or not hudContainer.Visible then return end
+
+        local now = os.clock()
+
+        -- FPS Counter (усреднённый)
+        frameCount = frameCount + 1
+        frameTimeSum = frameTimeSum + delta
+        if now - lastFPSRefresh >= 0.5 then
+            lastFPSRefresh = now
+            if HUDFPS then
+                local avgFPS = math.floor((frameCount / frameTimeSum) + 0.5)
+                hudFPS.Text = "FPS: " .. tostring(avgFPS)
+            end
+            frameCount = 0
+            frameTimeSum = 0
+        end
+
+        -- Ping Counter (каждые 0.5 сек)
+        if HUDPing and now - lastPingRefresh >= 0.5 then
+            lastPingRefresh = now
+            local ms = 0
+            pcall(function()
+                local nPing = LocalPlayer:GetNetworkPing()
+                if nPing and nPing > 0 then
+                    ms = nPing * 1000
+                else
+                    local stat = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]
+                    if stat then
+                        local str = stat:GetValueString()
+                        local n = tonumber(tostring(str):match("%d+"))
+                        if n then ms = n end
+                    end
+                end
+            end)
+            hudPing.Text = "Ping: " .. tostring(math.floor(ms + 0.5)) .. " ms"
+        end
+
+        -- Killer Information (каждую 1 сек)
+        if HUDKiller and now - lastKillerRefresh >= 1.0 then
+            lastKillerRefresh = now
+            local detectedKiller = "Unknown"
+            if isPlayerManiac then
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character then
+                        if isPlayerManiac(player) then
+                            detectedKiller = player.Name
+                            break
+                        end
+                    end
+                end
+            end
+            hudKiller.Text = "Killer: " .. detectedKiller
+        end
+    end)
+end
+
+local function TerminateEssentialHUD()
+    if hudUpdateConnection then pcall(function() hudUpdateConnection:Disconnect() end); hudUpdateConnection = nil end
+    if hudContainer then pcall(function() hudContainer:Destroy() end); hudContainer = nil end
+end
+
+local function SetupEssentialHUD()
+    if HUDEnabled then
+        BuildEssentialHUD()
+        RefreshHUDVisibility()
+        StartEssentialHUDLoop()
+    else
+        RefreshHUDVisibility()
+        if hudUpdateConnection then pcall(function() hudUpdateConnection:Disconnect() end); hudUpdateConnection = nil end
+    end
+end
+
+local toggleEnableHUD = CreateToggle(hudDropdown, "Enable HUD", false, function(state)
+    HUDEnabled = state
+    SetupEssentialHUD()
+end)
+
+local toggleShowFPS = CreateToggle(hudDropdown, "Show FPS", true, function(state)
+    HUDFPS = state
+    RefreshHUDVisibility()
+end)
+
+local toggleShowPing = CreateToggle(hudDropdown, "Show Ping", true, function(state)
+    HUDPing = state
+    RefreshHUDVisibility()
+end)
+
+local toggleShowKiller = CreateToggle(hudDropdown, "Show Killer Info", true, function(state)
+    HUDKiller = state
+    RefreshHUDVisibility()
+end)
+
+-- ==================================
+-- НАСТРОЙКИ НА ВКЛАДКЕ — MISC
+-- ==================================
+local toggleFOVSet = CreateToggle(MiscPage, "Enable FOV Changer", false, function(state) FOVEnabled = state end)
+local sliderSet = CreateSlider(MiscPage, "FOV Changer Value", 70, 120, 70, function(val) currentFOV = val end)
+local toggleSpeedSet = CreateToggle(MiscPage, "Enable Speedhack", false, function(state) SpeedhackEnabled = state end)
+local sliderSpeedSet = CreateSlider(MiscPage, "WalkSpeed Value", 16, 150, 32, function(val) SpeedhackValue = val end)
+
+-- NOCLIP
+local function RestoreNoclipCollisions()
+    if LocalPlayer.Character then
+        for partId, originalState in pairs(noclipOriginalCollide) do
+            if partId and partId.Parent then
+                partId.CanCollide = originalState
+            end
+        end
+    end
+    noclipOriginalCollide = {}
+end
+
+local function ApplyNoclip()
+    if not LocalPlayer.Character then return end
+    for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if noclipOriginalCollide[part] == nil then
+                noclipOriginalCollide[part] = part.CanCollide
+            end
+            part.CanCollide = false
+        end
+    end
+end
+
+local toggleNoclip = CreateToggle(MiscPage, "Enable Noclip", false, function(state)
+    NoclipEnabled = state
+    if state then
+        if not noclipConnection then
+            noclipConnection = RunService.Stepped:Connect(function()
+                if NoclipEnabled then
+                    ApplyNoclip()
+                end
+            end)
+        end
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+        RestoreNoclipCollisions()
+    end
+end)
+
+-- ==================================
+-- СИСТЕМА КОНФИГОВ
+-- ==================================
+local configFolder = "EssentialConfigs"
+pcall(function()
+    if makefolder and not isfolder(configFolder) then makefolder(configFolder) end
+end)
+
+local function GetConfigs()
+    local files = {}
+    pcall(function()
+        if listfiles then
+            for _, file in ipairs(listfiles(configFolder)) do
+                local name = file:match("([^/\]+)%.json$")
+                if name then table.insert(files, name) end
+            end
+        end
+    end)
+    return files
+end
+
+local CurrentConfigName = ""
+local SetConfigNameText = CreateInput(ConfigPage, "Enter Config Name...", function(val)
+    CurrentConfigName = val
+end)
+
+local StatusLabel = CreateLabel(ConfigPage, "Status: Ready")
+local ConfigListSection = CreateDropdownSection(ConfigPage, "Available Configs")
+
+local function RefreshConfigList()
+    for _, child in ipairs(ConfigListSection:GetChildren()) do
+        if child:IsA("TextButton") and child.Name == "CfgFileBtn" then child:Destroy() end
+    end
+    local files = GetConfigs()
+    for _, cfgName in ipairs(files) do
+        local btn = CreateButton(ConfigListSection, cfgName, BgDark, function()
+            SetConfigNameText(cfgName)
+            StatusLabel("Status: Selected '" .. cfgName .. "'")
+        end)
+        btn.Name = "CfgFileBtn"
+    end
+end
+
+CreateButton(ConfigPage, "Save Config", BgElement, function()
+    if CurrentConfigName == "" or CurrentConfigName:match("^%s*$") then
+        StatusLabel("Status: Error - Name cannot be empty!") return
+    end
+    local files = GetConfigs()
+    local exists = false
+    for _, f in ipairs(files) do if f == CurrentConfigName then exists = true break end end
+    if not exists and #files >= 5 then
+        StatusLabel("Status: Error - Limit reached (Max 5 configs)!") return
+    end
+    local data = {
+        ManiacESP = ManiacESPEnabled, MR = ManiacR, MG = ManiacG, MB = ManiacB,
+        SurvESP = SurvivorESPEnabled, SR = SurvivorR, SG = SurvivorG, SB = SurvivorB,
+        GenESP = GeneratorESPEnabled, GR = GeneratorR, GG = GeneratorG, GB = GeneratorB,
+        PalletESP = PalletESPEnabled, PR = PalletR, PG = PalletG, PB = PalletB,
+        FOVOn = FOVEnabled, FOV = currentFOV, Speedhack = SpeedhackEnabled, WalkSpeed = SpeedhackValue,
+        FlashOn = FlashlightEnabled, FRange = FlashRange, FR = FlashR, FG = FlashG, FB = FlashB,
+        Noclip = NoclipEnabled,
+        SkyOn = SkyboxEnabled, SkyPreset = CurrentPreset,
+        SkyBright = SkyBrightness, SkyExp = SkyExposure,
+        SkyR = SkyR, SkyG = SkyG, SkyB = SkyB,
+        HorR = HorR, HorG = HorG, HorB = HorB,
+        HUDOn = HUDEnabled, HUDFPS = HUDFPS, HUDPing = HUDPing, HUDKiller = HUDKiller
+    }
+    pcall(function()
+        if writefile then
+            writefile(configFolder .. "/" .. CurrentConfigName .. ".json", HttpService:JSONEncode(data))
+            StatusLabel("Status: Saved '" .. CurrentConfigName .. "'!")
+            RefreshConfigList()
+        end
+    end)
+end)
+
+CreateButton(ConfigPage, "Load Config", BgElement, function()
+    if CurrentConfigName == "" then return end
+    local path = configFolder .. "/" .. CurrentConfigName .. ".json"
+    pcall(function()
+        if readfile and isfile and isfile(path) then
+            local data = HttpService:JSONDecode(readfile(path))
+            if type(data) == "table" then
+                toggleManiac(data.ManiacESP or false) sliderMR(data.MR or 239) sliderMG(data.MG or 68) sliderMB(data.MB or 68)
+                toggleSurvivor(data.SurvESP or false) sliderSR(data.SR or 34) sliderSG(data.SG or 197) sliderSB(data.SB or 94)
+                toggleGenerator(data.GenESP or false) sliderGR(data.GR or 255) sliderGG(data.GG or 255) sliderGB(data.GB or 0)
+                togglePallet(data.PalletESP or false) sliderPR(data.PR or 255) sliderPG(data.PG or 128) sliderPB(data.PB or 0)
+                toggleFOVSet(data.FOVOn or false) sliderSet(data.FOV or 70)
+                toggleSpeedSet(data.Speedhack or false) sliderSpeedSet(data.WalkSpeed or 32)
+                toggleFlashlight(data.FlashOn or false) sliderFlashRange(data.FRange or 60) sliderFlashR(data.FR or 255) sliderFlashG(data.FG or 255) sliderFlashB(data.FB or 255)
+                toggleNoclip(data.Noclip or false)
+                toggleSky(data.SkyOn or false)
+                if data.SkyPreset and data.SkyPreset ~= "Custom" then
+                    ApplyPreset(data.SkyPreset)
+                else
+                    if skyBrightnessSlider then skyBrightnessSlider(data.SkyBright or 50) end
+                    if skyExposureSlider then skyExposureSlider(data.SkyExp or 50) end
+                    if skyRSlider then skyRSlider(data.SkyR or 100) end
+                    if skyGSlider then skyGSlider(data.SkyG or 160) end
+                    if skyBSlider then skyBSlider(data.SkyB or 255) end
+                    if horRSlider then horRSlider(data.HorR or 200) end
+                    if horGSlider then horGSlider(data.HorG or 220) end
+                    if horBSlider then horBSlider(data.HorB or 255) end
+                end
+                if toggleEnableHUD then toggleEnableHUD(data.HUDOn or false) end
+                if toggleShowFPS then toggleShowFPS(data.HUDFPS ~= false) end
+                if toggleShowPing then toggleShowPing(data.HUDPing ~= false) end
+                if toggleShowKiller then toggleShowKiller(data.HUDKiller ~= false) end
+                StatusLabel("Status: Loaded '" .. CurrentConfigName .. "'!")
+            end
+        else
+            StatusLabel("Status: Error - Config not found!")
+        end
+    end)
+end)
+
+CreateButton(ConfigPage, "Delete Config", BgElement, function()
+    if CurrentConfigName == "" then return end
+    local path = configFolder .. "/" .. CurrentConfigName .. ".json"
+    pcall(function()
+        if delfile and isfile and isfile(path) then
+            delfile(path)
+            StatusLabel("Status: Deleted '" .. CurrentConfigName .. "'!")
+            SetConfigNameText("")
+            RefreshConfigList()
+        else
+            StatusLabel("Status: Error - Config not found!")
+        end
+    end)
+end)
+
+RefreshConfigList()
+
+local sep = Instance.new("Frame", ConfigPage)
+sep.Size = UDim2.new(1, 0, 0, 1)
+sep.BackgroundColor3 = Color3.fromRGB(35, 35, 38)
+sep.BorderSizePixel = 0
+
+-- ==================================
+-- СКАНИРОВАНИЕ КАРТЫ
+-- ==================================
+local function CheckObject(obj)
+    if obj:IsA("Model") or obj:IsA("BasePart") then
+        local name = string.lower(obj.Name)
+        if string.match(name, "generator") or name == "gen" then
+            table.insert(trackedGenerators, obj)
+        elseif string.match(name, "pallet") then
+            table.insert(trackedPallets, obj)
+        end
+    end
+end
+
+task.spawn(function()
+    local allObjs = workspace:GetDescendants()
+    for i = 1, #allObjs do
+        CheckObject(allObjs[i])
+        if i % 1000 == 0 then task.wait() end
+    end
+end)
+
+table.insert(connections, workspace.DescendantAdded:Connect(CheckObject))
+
+local function DisconnectSkyboxGuards()
+    for _, conn in ipairs(skyboxGuardConnections) do
+        if conn then pcall(function() conn:Disconnect() end) end
+    end
+    skyboxGuardConnections = {}
+end
+
+local function UnloadScript()
+    for _, conn in ipairs(connections) do if conn then conn:Disconnect() end end
+    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    RestoreNoclipCollisions()
+    DisconnectSkyboxGuards()
+    ResetSkybox()
+    TerminateEssentialHUD()
+    
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character and p.Character:FindFirstChild("EssentialESP") then p.Character.EssentialESP:Destroy() end
+    end
+    for _, gen in ipairs(trackedGenerators) do
+        if gen and gen.Parent and gen:FindFirstChild("EssentialESP") then gen.EssentialESP:Destroy() end
+    end
+    for _, pallet in ipairs(trackedPallets) do
+        if pallet and pallet.Parent and pallet:FindFirstChild("EssentialESP") then pallet.EssentialESP:Destroy() end
+    end
+    if currentLight then currentLight:Destroy() end
+    if workspace.CurrentCamera then workspace.CurrentCamera.FieldOfView = 70 end
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.WalkSpeed = 16 end
+    ScreenGui:Destroy()
+end
+
+CreateButton(ConfigPage, "Unload Script", AccentColor, UnloadScript)
+
+-- ==================================
+-- ГЛАВНЫЙ ЦИКЛ
+-- ==================================
+table.insert(connections, RunService.RenderStepped:Connect(function()
+    if workspace.CurrentCamera then
+        workspace.CurrentCamera.FieldOfView = FOVEnabled and currentFOV or 70
+    end
+
+    if LocalPlayer.Character then
+        local humanoid = LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+        if humanoid and SpeedhackEnabled then humanoid.WalkSpeed = SpeedhackValue end
+        
+        local rootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if FlashlightEnabled and rootPart then
+            if not currentLight or currentLight.Parent ~= rootPart then
+                if currentLight then currentLight:Destroy() end
+                currentLight = Instance.new("PointLight")
+                currentLight.Shadows = false
+                currentLight.Brightness = 1.2
+                currentLight.Parent = rootPart
+            end
+            currentLight.Color = Color3.fromRGB(FlashR, FlashG, FlashB)
+            currentLight.Range = FlashRange
+        else
+            if currentLight then currentLight:Destroy() currentLight = nil end
+        end
+    end
+
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    
+    if myRoot then
+        local myPos = myRoot.Position
+
+        for i = #trackedGenerators, 1, -1 do
+            local gen = trackedGenerators[i]
+            if gen and gen.Parent then
+                local highlight = gen:FindFirstChild("EssentialESP")
+                local targetPart = gen:IsA("Model") and gen.PrimaryPart or gen:IsA("BasePart") and gen or gen:FindFirstChildWhichIsA("BasePart")
+                if targetPart then
+                    local dist = (myPos - targetPart.Position).Magnitude
+                    if GeneratorESPEnabled and dist <= MAX_ESP_DISTANCE then
+                        if not highlight then
+                            highlight = Instance.new("Highlight")
+                            highlight.Name = "EssentialESP"
+                            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                            highlight.FillTransparency = 0.5
+                            highlight.OutlineTransparency = 0.2
+                            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            highlight.Parent = gen
+                        end
+                        highlight.FillColor = Color3.fromRGB(GeneratorR, GeneratorG, GeneratorB)
+                    else
+                        if highlight then highlight:Destroy() end
+                    end
+                end
+            else
+                table.remove(trackedGenerators, i)
+            end
+        end
+
+        for i = #trackedPallets, 1, -1 do
+            local pallet = trackedPallets[i]
+            if pallet and pallet.Parent then
+                local highlight = pallet:FindFirstChild("EssentialESP")
+                local targetPart = pallet:IsA("Model") and pallet.PrimaryPart or pallet:IsA("BasePart") and pallet or pallet:FindFirstChildWhichIsA("BasePart")
+                if targetPart then
+                    local dist = (myPos - targetPart.Position).Magnitude
+                    if PalletESPEnabled and dist <= MAX_ESP_DISTANCE then
+                        if not highlight then
+                            highlight = Instance.new("Highlight")
+                            highlight.Name = "EssentialESP"
+                            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                            highlight.FillTransparency = 0.5
+                            highlight.OutlineTransparency = 0.2
+                            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            highlight.Parent = pallet
+                        end
+                        highlight.FillColor = Color3.fromRGB(PalletR, PalletG, PalletB)
+                    else
+                        if highlight then highlight:Destroy() end
+                    end
+                end
+            else
+                table.remove(trackedPallets, i)
+            end
+        end
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local isManiac = isPlayerManiac(player)
+            local highlight = player.Character:FindFirstChild("EssentialESP")
+            local shouldHighlight = false
+            local highlightColor = Color3.fromRGB(255, 255, 255)
+            if isManiac and ManiacESPEnabled then
+                shouldHighlight = true
+                highlightColor = Color3.fromRGB(ManiacR, ManiacG, ManiacB)
+            elseif not isManiac and SurvivorESPEnabled then
+                shouldHighlight = true
+                highlightColor = Color3.fromRGB(SurvivorR, SurvivorG, SurvivorB)
+            end
+            if shouldHighlight then
+                if not highlight then
+                    highlight = Instance.new("Highlight")
+                    highlight.Name = "EssentialESP"
+                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    highlight.FillTransparency = 0.5
+                    highlight.OutlineTransparency = 0.2
+                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    highlight.Parent = player.Character
+                end
+                highlight.FillColor = highlightColor
+            else
+                if highlight then highlight:Destroy() end
+            end
+        end
+    end
+end))
+
+print("[Essential]: Script Loaded Successfully! (+Noclip, +Custom Skybox with Weather Lock, +Essential HUD)")
