@@ -665,7 +665,11 @@ local function CreateDropdown(parent, text, options, default, callback)
     local isOpen = false
     local currentValue = default
 
-    local function setValue(val) currentValue = val selector.Text = "  " .. tostring(val) callback(val) end
+    local function setValue(val)
+        currentValue = val
+        selector.Text = "  " .. tostring(val)
+        callback(val)
+    end
 
     for _, opt in ipairs(options) do
         local optBtn = Instance.new("TextButton", optionHolder)
@@ -678,7 +682,8 @@ local function CreateDropdown(parent, text, options, default, callback)
     end
 
     selector.MouseButton1Click:Connect(function()
-        isOpen = not isOpen arrow.Text = isOpen and "▲" or "▼"
+        isOpen = not isOpen
+        arrow.Text = isOpen and "▲" or "▼"
         local targetH = isOpen and (42 + optLayout.AbsoluteContentSize.Y + 8) or 42
         TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, targetH)}):Play()
     end)
@@ -1147,39 +1152,9 @@ CreateButton(ConfigPage, "Delete Config", BgElement, function()
     end)
 end)
 
--- НОВЫЕ КНОПКИ: ЭКСПОРТ И ИМПОРТ ИЗ БУФЕРА ОБМЕНА
-CreateButton(ConfigPage, "Share: Export to Clipboard", BgElement, function()
-    if CurrentConfigName == "" then StatusLabel("Status: Error - Name cannot be empty!") return end
-    local path = configFolder .. "/" .. CurrentConfigName .. ".json"
-    pcall(function()
-        if readfile and isfile and isfile(path) then
-            local data = readfile(path)
-            if setclipboard then
-                setclipboard(data)
-                StatusLabel("Status: Copied config to clipboard! Paste it to your friend.")
-            else
-                StatusLabel("Status: Your executor doesn't support setclipboard.")
-            end
-        else
-            StatusLabel("Status: Error - Config not found!")
-        end
-    end)
-end)
-
-CreateButton(ConfigPage, "Share: Import from Clipboard", BgElement, function()
-    if CurrentConfigName == "" then StatusLabel("Status: Error - Enter a name first!") return end
-    pcall(function()
-        local data = getclipboard and getclipboard() or ""
-        if data ~= "" and (string.sub(data, 1, 1) == "{" or string.match(data, "^%s*{")) then
-            if writefile then
-                writefile(configFolder .. "/" .. CurrentConfigName .. ".json", data)
-                StatusLabel("Status: Successfully imported config!")
-                RefreshConfigList()
-            end
-        else
-            StatusLabel("Status: Error - Invalid clipboard data!")
-        end
-    end)
+CreateButton(ConfigPage, "Reload Configs", BgElement, function()
+    RefreshConfigList()
+    StatusLabel("Status: Config list reloaded!")
 end)
 
 RefreshConfigList()
