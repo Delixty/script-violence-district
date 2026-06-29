@@ -1,5 +1,5 @@
 -- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR
--- [UPDATED] + CONFIG SHARING SYSTEM TO CLIPBOARD (IMPORT/EXPORT)
+-- [UPDATED] Clean Config System + Smart Pallet ESP (No Boxes)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -46,6 +46,7 @@ local currentFOV = 70
 local SpeedhackEnabled = false
 local SpeedhackValue = 32
 
+local NoStopEmoteEnabled = false
 local FlashlightEnabled = false
 local FlashR, FlashG, FlashB = 255, 255, 255
 local FlashRange = 60
@@ -195,7 +196,7 @@ HeaderBottomStroke.Position = UDim2.new(0, 0, 1, 0)
 HeaderBottomStroke.BackgroundColor3 = Color3.fromRGB(60, 30, 90)
 HeaderBottomStroke.BorderSizePixel = 0
 
--- АНИМИРОВАННАЯ ЗВЕЗДА РЯДОМ С НАЗВАНИЕМ (без зависимости от asset id)
+-- АНИМИРОВАННАЯ ЗВЕЗДА РЯДОМ С НАЗВАНИЕМ
 local StarContainer = Instance.new("Frame", Header)
 StarContainer.Size = UDim2.new(0, 30, 0, 30)
 StarContainer.Position = UDim2.new(0, 12, 0.5, -15)
@@ -229,11 +230,9 @@ StarGrad.Color = AccentGradient
 local starT = 0
 table.insert(connections, RunService.RenderStepped:Connect(function(dt)
     starT = starT + dt
-    -- Плавное вращение (убраны резкие прерывания из-за while loop)
     StarCore.Rotation = starT * 45
     StarGlow.Rotation = starT * 45
     
-    -- Пульсация (размер и прозрачность)
     local pulse = math.sin(starT * 3.5)
     StarCore.TextSize = 24 + (pulse * 2)
     StarGlow.TextSize = 30 + (pulse * 5)
@@ -317,13 +316,12 @@ TopbarStroke.Position = UDim2.new(0, 0, 1, 0)
 TopbarStroke.BackgroundColor3 = Color3.fromRGB(60, 30, 90)
 TopbarStroke.BorderSizePixel = 0
 
--- ИСПРАВЛЕНИЕ ВКЛАДКИ CONFIG: ScrollingFrame + ClipsDescendants
 local TabContainer = Instance.new("ScrollingFrame", Topbar)
 TabContainer.Size = UDim2.new(1, -10, 1, 0)
 TabContainer.BackgroundTransparency = 1
 TabContainer.ScrollingDirection = Enum.ScrollingDirection.X
 TabContainer.ScrollBarThickness = 0
-TabContainer.ClipsDescendants = true -- ИСПРАВЛЕНИЕ СЛИЯНИЯ КОНТУРОВ
+TabContainer.ClipsDescendants = true 
 
 local TabListLayout = Instance.new("UIListLayout", TabContainer)
 TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder 
@@ -366,7 +364,6 @@ SearchInput.TextXAlignment = Enum.TextXAlignment.Left
 SearchInput.ClearTextOnFocus = false
 SearchInput.ZIndex = 6
 
--- Растягиваем поиск до вкладки Config, чтобы не оставалось пустого пространства
 local function UpdateTopbarLayout()
     local topbarWidth = Topbar.AbsoluteSize.X
     if topbarWidth <= 0 then return end
@@ -419,10 +416,22 @@ ContentPadding.PaddingTop = UDim.new(0, 12) ContentPadding.PaddingLeft = UDim.ne
 
 -- ФУНКЦИИ БИБЛИОТЕКИ UI
 local tabs = {}
+
+local function ShouldBeSearchable(obj)
+    local current = obj
+    while current and current ~= game do
+        if current.Name == "ConfigPage" then
+            return false
+        end
+        current = current.Parent
+    end
+    return true
+end
+
 local function CreateTab(name)
     local parentNode = TabContainer
     local btn = Instance.new("TextButton", parentNode)
-    btn.Size = UDim2.new(0, 85, 0, 26) -- Уменьшена ширина кнопок вкладок
+    btn.Size = UDim2.new(0, 85, 0, 26)
     btn.BackgroundColor3 = BgDark 
     btn.BackgroundTransparency = 1 
     btn.Text = "" 
@@ -444,9 +453,10 @@ local function CreateTab(name)
     lbl.TextColor3 = TextMuted 
     lbl.TextSize = 13 
     lbl.Font = Enum.Font.GothamBold
-    lbl.ZIndex = 2 -- Ensure text is above background
+    lbl.ZIndex = 2
 
     local page = Instance.new("ScrollingFrame", ContentArea)
+    page.Name = name .. "Page"
     page.Size = UDim2.new(1, 0, 1, 0) 
     page.BackgroundTransparency = 1 
     page.ScrollBarThickness = 4 
@@ -501,7 +511,9 @@ local function CreateToggle(parent, text, default, callback)
     circle.Size = UDim2.new(0, 14, 0, 14) circle.Position = UDim2.new(0, default and 23 or 3, 0.5, -7) circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
     
-    table.insert(SearchableElements, {frame = frame, text = string.lower(text)})
+    if ShouldBeSearchable(parent) then
+        table.insert(SearchableElements, {frame = frame, text = string.lower(text)})
+    end
 
     local state = default
     local function setState(newState)
@@ -546,7 +558,9 @@ local function CreateSlider(parent, text, min, max, default, callback)
     local btn = Instance.new("TextButton", bar)
     btn.Size = UDim2.new(1, 0, 1, 0) btn.BackgroundTransparency = 1 btn.Text = ""
     
-    table.insert(SearchableElements, {frame = frame, text = string.lower(text)})
+    if ShouldBeSearchable(parent) then
+        table.insert(SearchableElements, {frame = frame, text = string.lower(text)})
+    end
 
     local dragging = false
     btn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end end)
@@ -579,7 +593,9 @@ local function CreateButton(parent, text, bgCol, callback)
         local grad = Instance.new("UIGradient", btn) grad.Color = AccentGradient
     end
     
-    table.insert(SearchableElements, {frame = btn, text = string.lower(text)})
+    if ShouldBeSearchable(parent) then
+        table.insert(SearchableElements, {frame = btn, text = string.lower(text)})
+    end
 
     btn.MouseButton1Click:Connect(callback)
     return btn
@@ -593,7 +609,9 @@ local function CreateInput(parent, placeholder, callback)
     local box = Instance.new("TextBox", frame)
     box.Size = UDim2.new(1, -24, 1, 0) box.Position = UDim2.new(0, 12, 0, 0) box.BackgroundTransparency = 1 box.Text = "" box.PlaceholderText = placeholder box.TextColor3 = TextColor box.PlaceholderColor3 = TextMuted box.TextSize = 13 box.Font = Enum.Font.Gotham box.TextXAlignment = Enum.TextXAlignment.Left box.ClearTextOnFocus = false
     
-    table.insert(SearchableElements, {frame = frame, text = string.lower(placeholder)})
+    if ShouldBeSearchable(parent) then
+        table.insert(SearchableElements, {frame = frame, text = string.lower(placeholder)})
+    end
 
     box.FocusLost:Connect(function() callback(box.Text) end)
     return function(txt) box.Text = txt callback(txt) end
@@ -623,7 +641,9 @@ local function CreateDropdownSection(parent, titleText)
     
     local list = Instance.new("UIListLayout", container) list.SortOrder = Enum.SortOrder.LayoutOrder list.Padding = UDim.new(0, 6)
     
-    table.insert(SearchableElements, {frame = mainFrame, text = string.lower(titleText)})
+    if ShouldBeSearchable(parent) then
+        table.insert(SearchableElements, {frame = mainFrame, text = string.lower(titleText)})
+    end
 
     local isOpen = false
     triggerBtn.MouseButton1Click:Connect(function()
@@ -660,7 +680,9 @@ local function CreateDropdown(parent, text, options, default, callback)
     optionHolder.Position = UDim2.new(0, 12, 0, 42) optionHolder.Size = UDim2.new(1, -24, 0, 0) optionHolder.BackgroundTransparency = 1
     local optLayout = Instance.new("UIListLayout", optionHolder) optLayout.SortOrder = Enum.SortOrder.LayoutOrder optLayout.Padding = UDim.new(0, 4)
 
-    table.insert(SearchableElements, {frame = frame, text = string.lower(text)})
+    if ShouldBeSearchable(parent) then
+        table.insert(SearchableElements, {frame = frame, text = string.lower(text)})
+    end
 
     local isOpen = false
     local currentValue = default
@@ -981,6 +1003,8 @@ UI_Elements.sliderSet = CreateSlider(MiscPage, "FOV Changer Value", 70, 120, 70,
 UI_Elements.toggleSpeedSet = CreateToggle(MiscPage, "Enable Speedhack", false, function(state) SpeedhackEnabled = state end)
 UI_Elements.sliderSpeedSet = CreateSlider(MiscPage, "WalkSpeed Value", 16, 150, 32, function(val) SpeedhackValue = val end)
 
+UI_Elements.toggleNoStopEmote = CreateToggle(MiscPage, "Enable No Stop Emote", false, function(state) NoStopEmoteEnabled = state end)
+
 -- NOCLIP
 local function RestoreNoclipCollisions()
     if LocalPlayer.Character then for partId, originalState in pairs(noclipOriginalCollide) do if partId and partId.Parent then partId.CanCollide = originalState end end end
@@ -1039,7 +1063,7 @@ CreateButton(ConfigPage, "Save Config", BgElement, function()
     local files = GetConfigs() local exists = false
     for _, f in ipairs(files) do if f == CurrentConfigName then exists = true break end end
     if not exists and #files >= 5 then StatusLabel("Status: Error - Limit reached (Max 5 configs)!") return end
-    local data = {
+local data = {
         ManiacESP = ManiacESPEnabled, MR = ManiacR, MG = ManiacG, MB = ManiacB,
         SurvESP = SurvivorESPEnabled, SR = SurvivorR, SG = SurvivorG, SB = SurvivorB,
         GenESP = GeneratorESPEnabled, GR = GeneratorR, GG = GeneratorG, GB = GeneratorB,
@@ -1052,7 +1076,8 @@ CreateButton(ConfigPage, "Save Config", BgElement, function()
         HUDOn = HUDEnabled, HUDFPS = HUDFPS, HUDPing = HUDPing, HUDKiller = HUDKiller,
         FogOn = CustomFogEnabled, FogStart = FogStartDist, FogEnd = FogEndDist, FogR = FogR, FogG = FogG, FogB = FogB,
         StretchOn = StretchEnabled, StretchPreset = StretchPreset, StretchCustom = StretchCustomValue,
-        CrosshairOn = CrosshairEnabled, CHLen = CrosshairLength, CHWid = CrosshairWidth, CHR = CrosshairR, CHG = CrosshairG, CHB = CrosshairB
+        CrosshairOn = CrosshairEnabled, CHLen = CrosshairLength, CHWid = CrosshairWidth, CHR = CrosshairR, CHG = CrosshairG, CHB = CrosshairB,
+        NoStopEmote = NoStopEmoteEnabled
     }
     pcall(function() if writefile then writefile(configFolder .. "/" .. CurrentConfigName .. ".json", HttpService:JSONEncode(data)) StatusLabel("Status: Saved '" .. CurrentConfigName .. "'!") RefreshConfigList() end end)
 end)
@@ -1089,6 +1114,10 @@ CreateButton(ConfigPage, "Load Config", BgElement, function()
                 
                 if UI_Elements.toggleSpeedSet then UI_Elements.toggleSpeedSet(data.Speedhack or false) end
                 if UI_Elements.sliderSpeedSet then UI_Elements.sliderSpeedSet(data.WalkSpeed or 32) end
+                if UI_Elements.toggleSpeedSet then UI_Elements.toggleSpeedSet(data.Speedhack or false) end
+                if UI_Elements.sliderSpeedSet then UI_Elements.sliderSpeedSet(data.WalkSpeed or 32) end
+                
+                if UI_Elements.toggleNoStopEmote then UI_Elements.toggleNoStopEmote(data.NoStopEmote or false) end
                 
                 if UI_Elements.toggleFlashlight then UI_Elements.toggleFlashlight(data.FlashOn or false) end
                 if UI_Elements.sliderFlashRange then UI_Elements.sliderFlashRange(data.FRange or 60) end
@@ -1144,6 +1173,11 @@ CreateButton(ConfigPage, "Load Config", BgElement, function()
     end)
 end)
 
+CreateButton(ConfigPage, "Reload Configs", BgElement, function()
+    RefreshConfigList()
+    StatusLabel("Status: Config list reloaded!")
+end)
+
 CreateButton(ConfigPage, "Delete Config", BgElement, function()
     if CurrentConfigName == "" then return end
     local path = configFolder .. "/" .. CurrentConfigName .. ".json"
@@ -1152,18 +1186,13 @@ CreateButton(ConfigPage, "Delete Config", BgElement, function()
     end)
 end)
 
-CreateButton(ConfigPage, "Reload Configs", BgElement, function()
-    RefreshConfigList()
-    StatusLabel("Status: Config list reloaded!")
-end)
-
 RefreshConfigList()
 
 local sep = Instance.new("Frame", ConfigPage)
 sep.Size = UDim2.new(1, 0, 0, 1) sep.BackgroundColor3 = Color3.fromRGB(60, 40, 90) sep.BorderSizePixel = 0
 
 -- ============================================================
--- СКАНИРОВАНИЕ КАРТЫ
+-- СКАНИРОВАНИЕ КАРТЫ (УЛУЧШЕННАЯ ФИЛЬТРАЦИЯ ПАЛЛЕТОК)
 -- ============================================================
 local function CheckObject(obj)
     if not obj or not obj.Parent then return end
@@ -1171,13 +1200,39 @@ local function CheckObject(obj)
     local name = string.lower(obj.Name)
 
     if string.match(name, "generator") or name == "gen" then 
-        table.insert(trackedGenerators, obj)
+        if not table.find(trackedGenerators, obj) then
+            table.insert(trackedGenerators, obj)
+        end
         return
-    elseif string.match(name, "pallet") and obj:IsA("Model") then 
-        table.insert(trackedPallets, obj)
+    elseif string.match(name, "pallet") then 
+        -- Защита от выделения "Коробок" или декоративного мусора:
+        if string.match(name, "box") or string.match(name, "crate") then return end
+
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            -- Если внутри этой группы есть еще одна модель/деталь с именем pallet,
+            -- значит это общая группа с декорациями. Мы её пропускаем, чтобы 
+            -- скрипт подсветил саму внутреннюю доску на следующем шаге цикла.
+            if obj:IsA("Model") then
+                local isOuterGroup = false
+                for _, child in ipairs(obj:GetChildren()) do
+                    local cName = string.lower(child.Name)
+                    if string.match(cName, "pallet") or cName == "board" then
+                        isOuterGroup = true
+                        break
+                    end
+                end
+                if isOuterGroup then return end
+            end
+
+            if not table.find(trackedPallets, obj) then
+                table.insert(trackedPallets, obj)
+            end
+        end
         return
     elseif string.match(name, "hook") then 
-        table.insert(trackedHooks, obj)
+        if not table.find(trackedHooks, obj) then
+            table.insert(trackedHooks, obj)
+        end
         return
     end
 end
@@ -1349,7 +1404,47 @@ table.insert(connections, RunService.RenderStepped:Connect(function()
                 else if highlight then highlight:Destroy() end end
             end
         end
+        -- NO STOP EMOTE ЛОГИКА
+            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+            
+            if NoStopEmoteEnabled and humanoid then
+                local isDoingAction = IsActionKeyPressed
+                
+                -- Дополнительно проверяем, играет ли анимация действия
+                if not isDoingAction then
+                    for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+                        local name = string.lower(track.Name)
+                        local isAction = string.find(name, "repair") or string.find(name, "heal") or string.find(name, "fix") or 
+                                         string.find(name, "vault") or string.find(name, "struggle") or string.find(name, "unhook") or 
+                                         string.find(name, "cleanse") or string.find(name, "totem") or string.find(name, "search") or 
+                                         string.find(name, "open") or string.find(name, "attack") or string.find(name, "shoot") or
+                                         string.find(name, "interact") or string.find(name, "action") or string.find(name, "carry")
+                        if isAction then
+                            isDoingAction = true
+                            break
+                        end
+                    end
+                end
+
+                for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+                    local name = string.lower(track.Name)
+                    local animId = track.Animation and string.lower(tostring(track.Animation.AnimationId)) or ""
+                    
+                    local isEmote = string.find(name, "emote") or string.find(name, "dance") or string.find(name, "cheer") or string.find(name, "laugh") or string.find(name, "point") or string.find(name, "wave") or string.find(name, "sit") or string.find(animId, "emote") or string.find(animId, "dance")
+                    
+                    if isEmote then
+                        if isDoingAction then
+                            -- Игрок нажал ЛКМ (или выполнил действие) - прерываем танец
+                            track.Looped = false
+                            track:Stop()
+                        else
+                            -- Иначе зацикливаем анимацию
+                            track.Looped = true
+                        end
+                    end
+                end
+            end
     end)
 end))
 
-print("[Essential Recode]: Script Loaded Successfully! (+Config Sharing System)")
+print("[Essential Recode]: Script Loaded Successfully! (Smart Pallet ESP)")
