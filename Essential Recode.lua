@@ -1,0 +1,1380 @@
+-- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR
+-- [UPDATED] + CONFIG SHARING SYSTEM TO CLIPBOARD (IMPORT/EXPORT)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+
+local CoreGui
+pcall(function() CoreGui = game:GetService("CoreGui") end)
+
+-- Безопасное получение локального игрока
+local LocalPlayer = Players.LocalPlayer
+while not LocalPlayer do
+    task.wait()
+    LocalPlayer = Players.LocalPlayer
+end
+
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 15)
+local connections = {}
+
+-- Единая таблица для хранения контроллеров UI
+local UI_Elements = {}
+local SearchableElements = {} -- ДЛЯ СИСТЕМЫ ПОИСКА
+
+-- Настройки по умолчанию
+local ManiacESPEnabled = false
+local ManiacR, ManiacG, ManiacB = 239, 68, 68
+
+local SurvivorESPEnabled = false
+local SurvivorR, SurvivorG, SurvivorB = 34, 197, 94
+
+local GeneratorESPEnabled = false
+local GeneratorR, GeneratorG, GeneratorB = 255, 255, 0
+
+local PalletESPEnabled = false
+local PalletR, PalletG, PalletB = 255, 128, 0
+
+local HookESPEnabled = false
+local HookR, HookG, HookB = 255, 0, 0
+
+local FOVEnabled = false
+local currentFOV = 70
+local SpeedhackEnabled = false
+local SpeedhackValue = 32
+
+local FlashlightEnabled = false
+local FlashR, FlashG, FlashB = 255, 255, 255
+local FlashRange = 60
+local currentLight = nil
+
+-- НАСТРОЙКИ CUSTOM FOG
+local CustomFogEnabled = false
+local FogStartDist = 0
+local FogEndDist = 1000
+local FogR, FogG, FogB = 150, 150, 150
+
+-- НАСТРОЙКИ CROSSHAIR (ПРИЦЕЛА)
+local CrosshairEnabled = false
+local CrosshairLength = 10
+local CrosshairWidth = 2
+local CrosshairR, CrosshairG, CrosshairB = 0, 255, 0
+
+-- NOCLIP НАСТРОЙКИ
+local NoclipEnabled = false
+local noclipOriginalCollide = {}
+local noclipConnection = nil
+
+-- ASPECT RATIO НАСТРОЙКИ
+local StretchEnabled = false
+local StretchPreset = "16:9 (Default)"
+local StretchCustomValue = 100
+
+-- CUSTOM SKYBOX НАСТРОЙКИ
+local SkyboxEnabled = false
+local SkyBrightness = 50
+local SkyExposure = 50
+local SkyR, SkyG, SkyB = 100, 160, 255
+local HorR, HorG, HorB = 200, 220, 255
+local CurrentPreset = "Default"
+local DefaultSky = nil
+local CustomSky = nil
+local DefaultLighting = {
+    Brightness = Lighting.Brightness,
+    ExposureCompensation = Lighting.ExposureCompensation,
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    ColorShift_Top = Lighting.ColorShift_Top,
+    ColorShift_Bottom = Lighting.ColorShift_Bottom,
+    ClockTime = Lighting.ClockTime,
+    FogColor = Lighting.FogColor,
+    FogStart = Lighting.FogStart,
+    FogEnd = Lighting.FogEnd
+}
+local _skyboxApplying = false
+local skyboxGuardConnections = {}
+
+-- Настройки Sky-объекта
+local SkySettings = {
+    StarCount = 1000,
+    SunAngularSize = 11,
+    MoonAngularSize = 11,
+    CelestialBodiesShown = true,
+}
+
+local trackedGenerators = {}
+local trackedPallets = {}
+local trackedHooks = {}
+
+local MAX_ESP_DISTANCE = 100
+
+-- Цветовая палитра интерфейса
+local AccentColor = Color3.fromRGB(168, 85, 247)
+local AccentGradient = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(168, 85, 247)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(236, 72, 153))
+})
+local BgMain = Color3.fromRGB(15, 11, 20)
+local BgHeader = Color3.fromRGB(24, 18, 34)
+local BgSidebar = Color3.fromRGB(20, 15, 28)
+local BgElement = Color3.fromRGB(30, 22, 43)
+local BgDark = Color3.fromRGB(12, 9, 18)
+local TextColor = Color3.fromRGB(235, 235, 240)
+local TextMuted = Color3.fromRGB(150, 140, 170)
+
+-- Инициализация ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EssentialUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+
+local successParent = false
+if CoreGui then 
+    pcall(function() 
+        for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "EssentialUI" then v:Destroy() end end
+        ScreenGui.Parent = CoreGui 
+        successParent = true
+    end) 
+end
+if not successParent and PlayerGui then 
+    for _, v in pairs(PlayerGui:GetChildren()) do if v.Name == "EssentialUI" then v:Destroy() end end
+    ScreenGui.Parent = PlayerGui 
+end
+
+-- Элементы прицела (Crosshair)
+local CrosshairCenter = Instance.new("Frame", ScreenGui)
+CrosshairCenter.Name = "EssentialCrosshair"
+CrosshairCenter.BackgroundTransparency = 1
+CrosshairCenter.Size = UDim2.new(0, 0, 0, 0)
+CrosshairCenter.Position = UDim2.new(0.5, 0, 0.5, 0)
+CrosshairCenter.Visible = false
+
+local CrosshairH = Instance.new("Frame", CrosshairCenter)
+CrosshairH.AnchorPoint = Vector2.new(0.5, 0.5)
+CrosshairH.BorderSizePixel = 0
+CrosshairH.Parent = CrosshairCenter
+
+local CrosshairV = Instance.new("Frame", CrosshairCenter)
+CrosshairV.AnchorPoint = Vector2.new(0.5, 0.5)
+CrosshairV.BorderSizePixel = 0
+CrosshairV.Parent = CrosshairCenter
+
+-- Главное окно (DYNAMIC ISLAND)
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.AnchorPoint = Vector2.new(0.5, 1)
+MainFrame.Position = UDim2.new(0.5, 0, 1, -15)
+MainFrame.Size = UDim2.new(0, 200, 0, 45) -- Сжатое состояние
+MainFrame.BackgroundColor3 = BgMain
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Color = Color3.fromRGB(120, 60, 180)
+MainStroke.Thickness = 1.5
+
+-- Шапка (Header)
+local Header = Instance.new("Frame", MainFrame)
+Header.Size = UDim2.new(1, 0, 0, 45)
+Header.BackgroundColor3 = BgHeader
+Header.BorderSizePixel = 0
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
+
+local HeaderBottom = Instance.new("Frame", Header)
+HeaderBottom.Size = UDim2.new(1, 0, 0, 12)
+HeaderBottom.Position = UDim2.new(0, 0, 1, -12)
+HeaderBottom.BackgroundColor3 = BgHeader
+HeaderBottom.BorderSizePixel = 0
+HeaderBottom.Visible = false
+local HeaderBottomStroke = Instance.new("Frame", HeaderBottom)
+HeaderBottomStroke.Size = UDim2.new(1, 0, 0, 1)
+HeaderBottomStroke.Position = UDim2.new(0, 0, 1, 0)
+HeaderBottomStroke.BackgroundColor3 = Color3.fromRGB(60, 30, 90)
+HeaderBottomStroke.BorderSizePixel = 0
+
+-- АНИМИРОВАННАЯ ЗВЕЗДА РЯДОМ С НАЗВАНИЕМ (без зависимости от asset id)
+local StarContainer = Instance.new("Frame", Header)
+StarContainer.Size = UDim2.new(0, 30, 0, 30)
+StarContainer.Position = UDim2.new(0, 12, 0.5, -15)
+StarContainer.BackgroundTransparency = 1
+
+local StarGlow = Instance.new("TextLabel", StarContainer)
+StarGlow.Size = UDim2.new(1, 0, 1, 0)
+StarGlow.Position = UDim2.new(0, 0, 0, 0)
+StarGlow.BackgroundTransparency = 1
+StarGlow.Text = "★"
+StarGlow.TextSize = 30
+StarGlow.Font = Enum.Font.GothamBlack
+StarGlow.TextColor3 = Color3.fromRGB(255, 255, 255)
+StarGlow.TextTransparency = 0.5
+StarGlow.ZIndex = 2
+local GlowGrad = Instance.new("UIGradient", StarGlow)
+GlowGrad.Color = AccentGradient
+
+local StarCore = Instance.new("TextLabel", StarContainer)
+StarCore.Size = UDim2.new(1, 0, 1, 0)
+StarCore.Position = UDim2.new(0, 0, 0, 0)
+StarCore.BackgroundTransparency = 1
+StarCore.Text = "★"
+StarCore.TextSize = 24
+StarCore.Font = Enum.Font.GothamBlack
+StarCore.TextColor3 = Color3.fromRGB(255, 255, 255)
+StarCore.ZIndex = 3
+local StarGrad = Instance.new("UIGradient", StarCore)
+StarGrad.Color = AccentGradient
+
+local starT = 0
+table.insert(connections, RunService.RenderStepped:Connect(function(dt)
+    starT = starT + dt
+    -- Плавное вращение (убраны резкие прерывания из-за while loop)
+    StarCore.Rotation = starT * 45
+    StarGlow.Rotation = starT * 45
+    
+    -- Пульсация (размер и прозрачность)
+    local pulse = math.sin(starT * 3.5)
+    StarCore.TextSize = 24 + (pulse * 2)
+    StarGlow.TextSize = 30 + (pulse * 5)
+    StarGlow.TextTransparency = 0.5 + (pulse * 0.2)
+end))
+
+local Title = Instance.new("TextLabel", Header)
+Title.Size = UDim2.new(1, -60, 1, 0)
+Title.Position = UDim2.new(0, 45, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Essential Recode"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 15
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+local TitleGrad = Instance.new("UIGradient", Title)
+TitleGrad.Color = AccentGradient
+
+-- Основная рабочая область
+local Body = Instance.new("Frame", MainFrame)
+Body.Size = UDim2.new(1, 0, 1, -45)
+Body.Position = UDim2.new(0, 0, 0, 45)
+Body.BackgroundTransparency = 1
+Body.Visible = false
+
+-- Логика перетаскивания (работает только в открытом виде)
+local dragging, dragInput, dragStart, startPos
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and Body.Visible then dragging = true dragStart = input.Position startPos = MainFrame.Position end
+end)
+Header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
+end)
+table.insert(connections, UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging and Body.Visible then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end))
+table.insert(connections, UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end))
+
+-- Открытие/Закрытие на RightShift (АНИМАЦИЯ DYNAMIC ISLAND)
+local isMenuOpen = false
+table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightShift then
+        isMenuOpen = not isMenuOpen
+        if isMenuOpen then
+            MainFrame.Visible = true
+            Body.Visible = true
+            HeaderBottom.Visible = true
+            TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 560, 0, 420),
+                Position = UDim2.new(0.5, 0, 0.5, 210)
+            }):Play()
+        else
+            TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 200, 0, 45),
+                Position = UDim2.new(0.5, 0, 1, -15)
+            }):Play()
+            task.delay(0.2, function()
+                if not isMenuOpen then
+                    Body.Visible = false
+                    HeaderBottom.Visible = false
+                end
+            end)
+        end
+    end
+end))
+
+-- Topbar (Вместо Sidebar)
+local Topbar = Instance.new("Frame", Body)
+Topbar.Size = UDim2.new(1, 0, 0, 42)
+Topbar.BackgroundColor3 = BgSidebar
+Topbar.BorderSizePixel = 0
+local TopbarStroke = Instance.new("Frame", Topbar)
+TopbarStroke.Size = UDim2.new(1, 0, 0, 1)
+TopbarStroke.Position = UDim2.new(0, 0, 1, 0)
+TopbarStroke.BackgroundColor3 = Color3.fromRGB(60, 30, 90)
+TopbarStroke.BorderSizePixel = 0
+
+-- ИСПРАВЛЕНИЕ ВКЛАДКИ CONFIG: ScrollingFrame + ClipsDescendants
+local TabContainer = Instance.new("ScrollingFrame", Topbar)
+TabContainer.Size = UDim2.new(1, -10, 1, 0)
+TabContainer.BackgroundTransparency = 1
+TabContainer.ScrollingDirection = Enum.ScrollingDirection.X
+TabContainer.ScrollBarThickness = 0
+TabContainer.ClipsDescendants = true -- ИСПРАВЛЕНИЕ СЛИЯНИЯ КОНТУРОВ
+
+local TabListLayout = Instance.new("UIListLayout", TabContainer)
+TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder 
+TabListLayout.FillDirection = Enum.FillDirection.Horizontal
+TabListLayout.Padding = UDim.new(0, 8)
+
+local TabPadding = Instance.new("UIPadding", TabContainer)
+TabPadding.PaddingTop = UDim.new(0, 8) 
+TabPadding.PaddingLeft = UDim.new(0, 15) 
+TabPadding.PaddingRight = UDim.new(0, 10)
+
+TabListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    TabContainer.CanvasSize = UDim2.new(0, TabListLayout.AbsoluteContentSize.X + 25, 0, 0)
+end)
+
+-- ПОИСКОВИК (SEARCH BAR)
+local SearchFrame = Instance.new("Frame", Topbar)
+SearchFrame.Size = UDim2.new(0, 150, 0, 26)
+SearchFrame.Position = UDim2.new(1, -160, 0, 8)
+SearchFrame.BackgroundColor3 = BgDark
+SearchFrame.BorderSizePixel = 0
+SearchFrame.ZIndex = 5
+Instance.new("UICorner", SearchFrame).CornerRadius = UDim.new(0, 6)
+local SearchStrokeObj = Instance.new("UIStroke", SearchFrame)
+SearchStrokeObj.Color = Color3.fromRGB(60, 40, 90)
+SearchStrokeObj.Thickness = 1
+SearchStrokeObj.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local SearchInput = Instance.new("TextBox", SearchFrame)
+SearchInput.Size = UDim2.new(1, -20, 1, 0)
+SearchInput.Position = UDim2.new(0, 10, 0, 0)
+SearchInput.BackgroundTransparency = 1
+SearchInput.Text = ""
+SearchInput.PlaceholderText = "Search..."
+SearchInput.TextColor3 = TextColor
+SearchInput.PlaceholderColor3 = TextMuted
+SearchInput.TextSize = 12
+SearchInput.Font = Enum.Font.Gotham
+SearchInput.TextXAlignment = Enum.TextXAlignment.Left
+SearchInput.ClearTextOnFocus = false
+SearchInput.ZIndex = 6
+
+-- Растягиваем поиск до вкладки Config, чтобы не оставалось пустого пространства
+local function UpdateTopbarLayout()
+    local topbarWidth = Topbar.AbsoluteSize.X
+    if topbarWidth <= 0 then return end
+
+    local tabsEnd = TabPadding.PaddingLeft.Offset + TabListLayout.AbsoluteContentSize.X
+    local gapAfterTabs = 10
+    local rightMargin = 10
+    local minSearchWidth = 130
+
+    local desiredX = tabsEnd + gapAfterTabs
+    local availableWidth = topbarWidth - desiredX - rightMargin
+
+    if availableWidth < minSearchWidth then
+        desiredX = topbarWidth - minSearchWidth - rightMargin
+        availableWidth = minSearchWidth
+    end
+
+    SearchFrame.Position = UDim2.new(0, desiredX, 0, 8)
+    SearchFrame.Size = UDim2.new(0, availableWidth, 0, 26)
+end
+
+TabListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateTopbarLayout)
+Topbar:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateTopbarLayout)
+task.defer(UpdateTopbarLayout)
+
+-- ЛОГИКА ПОИСКА
+SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
+    local query = string.lower(SearchInput.Text)
+    for _, item in ipairs(SearchableElements) do
+        if item.frame and item.frame.Parent then
+            if query == "" then
+                item.frame.Visible = true
+            else
+                if string.find(item.text, query) then
+                    item.frame.Visible = true
+                else
+                    item.frame.Visible = false
+                end
+            end
+        end
+    end
+end)
+
+local ContentArea = Instance.new("Frame", Body)
+ContentArea.Size = UDim2.new(1, 0, 1, -42)
+ContentArea.Position = UDim2.new(0, 0, 0, 42)
+ContentArea.BackgroundTransparency = 1
+local ContentPadding = Instance.new("UIPadding", ContentArea)
+ContentPadding.PaddingTop = UDim.new(0, 12) ContentPadding.PaddingLeft = UDim.new(0, 15) ContentPadding.PaddingRight = UDim.new(0, 15) ContentPadding.PaddingBottom = UDim.new(0, 12)
+
+-- ФУНКЦИИ БИБЛИОТЕКИ UI
+local tabs = {}
+local function CreateTab(name)
+    local parentNode = TabContainer
+    local btn = Instance.new("TextButton", parentNode)
+    btn.Size = UDim2.new(0, 85, 0, 26) -- Уменьшена ширина кнопок вкладок
+    btn.BackgroundColor3 = BgDark 
+    btn.BackgroundTransparency = 1 
+    btn.Text = "" 
+    
+    local bgFrame = Instance.new("Frame", btn)
+    bgFrame.Size = UDim2.new(1, 0, 1, 0) 
+    bgFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255) 
+    bgFrame.BackgroundTransparency = 1
+    Instance.new("UICorner", bgFrame).CornerRadius = UDim.new(0, 6)
+    
+    local grad = Instance.new("UIGradient", bgFrame)
+    grad.Color = AccentGradient
+    grad.Enabled = false
+    
+    local lbl = Instance.new("TextLabel", btn)
+    lbl.Size = UDim2.new(1, 0, 1, 0) 
+    lbl.BackgroundTransparency = 1 
+    lbl.Text = name 
+    lbl.TextColor3 = TextMuted 
+    lbl.TextSize = 13 
+    lbl.Font = Enum.Font.GothamBold
+    lbl.ZIndex = 2 -- Ensure text is above background
+
+    local page = Instance.new("ScrollingFrame", ContentArea)
+    page.Size = UDim2.new(1, 0, 1, 0) 
+    page.BackgroundTransparency = 1 
+    page.ScrollBarThickness = 4 
+    page.ScrollBarImageColor3 = Color3.fromRGB(120, 60, 180) 
+    page.BorderSizePixel = 0 
+    page.Visible = false
+    
+    local layout = Instance.new("UIListLayout", page)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder 
+    layout.Padding = UDim.new(0, 10)
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
+        page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10) 
+    end)
+
+    table.insert(tabs, {btn = btn, page = page, grad = grad, bgFrame = bgFrame, lbl = lbl})
+    
+    btn.MouseButton1Click:Connect(function()
+        for _, t in pairs(tabs) do
+            t.page.Visible = false
+            TweenService:Create(t.bgFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(t.lbl, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = TextMuted}):Play()
+            t.grad.Enabled = false
+        end
+        page.Visible = true
+        TweenService:Create(bgFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+        TweenService:Create(lbl, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+        grad.Enabled = true
+    end)
+    return page, btn, bgFrame, grad, lbl
+end
+
+local function CreateToggle(parent, text, default, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(1, 0, 0, 42) frame.BackgroundColor3 = BgElement
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    
+    local stroke = Instance.new("UIStroke", frame) stroke.Color = Color3.fromRGB(60, 40, 90) stroke.Thickness = 1
+    
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1, -70, 1, 0) label.Position = UDim2.new(0, 12, 0, 0) label.BackgroundTransparency = 1 label.Text = text label.TextColor3 = TextColor label.TextSize = 13 label.Font = Enum.Font.GothamSemibold label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(0, 40, 0, 20) btn.Position = UDim2.new(1, -52, 0.5, -10) btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255) btn.Text = ""
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+    
+    local grad = Instance.new("UIGradient", btn)
+    grad.Color = AccentGradient
+    grad.Enabled = default
+    if not default then btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55) end
+    
+    local circle = Instance.new("Frame", btn)
+    circle.Size = UDim2.new(0, 14, 0, 14) circle.Position = UDim2.new(0, default and 23 or 3, 0.5, -7) circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+    
+    table.insert(SearchableElements, {frame = frame, text = string.lower(text)})
+
+    local state = default
+    local function setState(newState)
+        state = newState
+        local circlePos = state and UDim2.new(0, 23, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
+        if state then
+            btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            grad.Enabled = true
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+            grad.Enabled = false
+        end
+        TweenService:Create(circle, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = circlePos}):Play()
+        callback(state)
+    end
+    btn.MouseButton1Click:Connect(function() setState(not state) end)
+    return setState
+end
+
+local function CreateSlider(parent, text, min, max, default, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(1, 0, 0, 54) frame.BackgroundColor3 = BgElement
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8) 
+    Instance.new("UIStroke", frame).Color = Color3.fromRGB(60, 40, 90)
+    
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1, -20, 0, 24) label.Position = UDim2.new(0, 12, 0, 5) label.BackgroundTransparency = 1 label.Text = text label.TextColor3 = TextColor label.TextSize = 13 label.Font = Enum.Font.GothamSemibold label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local valLabel = Instance.new("TextLabel", frame)
+    valLabel.Size = UDim2.new(0, 38, 0, 18) valLabel.Position = UDim2.new(1, -50, 0, 8) valLabel.BackgroundColor3 = BgDark valLabel.Text = tostring(default) valLabel.TextColor3 = Color3.fromRGB(200, 150, 255) valLabel.TextSize = 11 valLabel.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", valLabel).CornerRadius = UDim.new(0, 4)
+    
+    local bar = Instance.new("Frame", frame)
+    bar.Size = UDim2.new(1, -24, 0, 6) bar.Position = UDim2.new(0, 12, 0, 38) bar.BackgroundColor3 = BgDark
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+    
+    local fill = Instance.new("Frame", bar)
+    fill.Size = UDim2.new((default - min)/(max - min), 0, 1, 0) fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+    local fillGrad = Instance.new("UIGradient", fill) fillGrad.Color = AccentGradient
+    
+    local btn = Instance.new("TextButton", bar)
+    btn.Size = UDim2.new(1, 0, 1, 0) btn.BackgroundTransparency = 1 btn.Text = ""
+    
+    table.insert(SearchableElements, {frame = frame, text = string.lower(text)})
+
+    local dragging = false
+    btn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end end)
+    table.insert(connections, UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end))
+    
+    local function setVal(val)
+        valLabel.Text = tostring(val) fill.Size = UDim2.new((val - min)/(max - min), 0, 1, 0) callback(val)
+    end
+    
+    table.insert(connections, RunService.RenderStepped:Connect(function()
+        if dragging then
+            local mouseX = UserInputService:GetMouseLocation().X
+            local barX = bar.AbsolutePosition.X
+            local barSize = bar.AbsoluteSize.X
+            local percent = math.clamp((mouseX - barX) / barSize, 0, 1)
+            local val = math.floor(min + (max - min) * percent)
+            setVal(val)
+        end
+    end))
+    return setVal
+end
+
+local function CreateButton(parent, text, bgCol, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(1, 0, 0, 38) btn.BackgroundColor3 = bgCol or BgElement btn.Text = text btn.TextColor3 = Color3.fromRGB(255, 255, 255) btn.TextSize = 13 btn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8) Instance.new("UIStroke", btn).Color = Color3.fromRGB(60, 40, 90)
+    
+    if bgCol == AccentColor then
+        btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        local grad = Instance.new("UIGradient", btn) grad.Color = AccentGradient
+    end
+    
+    table.insert(SearchableElements, {frame = btn, text = string.lower(text)})
+
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local function CreateInput(parent, placeholder, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(1, 0, 0, 42) frame.BackgroundColor3 = BgElement
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8) Instance.new("UIStroke", frame).Color = Color3.fromRGB(60, 40, 90)
+    
+    local box = Instance.new("TextBox", frame)
+    box.Size = UDim2.new(1, -24, 1, 0) box.Position = UDim2.new(0, 12, 0, 0) box.BackgroundTransparency = 1 box.Text = "" box.PlaceholderText = placeholder box.TextColor3 = TextColor box.PlaceholderColor3 = TextMuted box.TextSize = 13 box.Font = Enum.Font.Gotham box.TextXAlignment = Enum.TextXAlignment.Left box.ClearTextOnFocus = false
+    
+    table.insert(SearchableElements, {frame = frame, text = string.lower(placeholder)})
+
+    box.FocusLost:Connect(function() callback(box.Text) end)
+    return function(txt) box.Text = txt callback(txt) end
+end
+
+local function CreateLabel(parent, defaultText)
+    local label = Instance.new("TextLabel", parent)
+    label.Size = UDim2.new(1, 0, 0, 20) label.BackgroundTransparency = 1 label.Text = defaultText label.TextColor3 = TextMuted label.TextSize = 12 label.Font = Enum.Font.GothamSemibold label.TextXAlignment = Enum.TextXAlignment.Center
+    return function(txt) label.Text = txt end
+end
+
+local function CreateDropdownSection(parent, titleText)
+    local mainFrame = Instance.new("Frame", parent)
+    mainFrame.Size = UDim2.new(1, 0, 0, 42) mainFrame.BackgroundColor3 = BgElement mainFrame.ClipsDescendants = true mainFrame.BorderSizePixel = 0
+    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8) Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(60, 40, 90)
+    
+    local triggerBtn = Instance.new("TextButton", mainFrame) triggerBtn.Size = UDim2.new(1, 0, 0, 42) triggerBtn.BackgroundTransparency = 1 triggerBtn.Text = ""
+    
+    local label = Instance.new("TextLabel", mainFrame)
+    label.Size = UDim2.new(1, -60, 0, 42) label.Position = UDim2.new(0, 12, 0, 0) label.BackgroundTransparency = 1 label.Text = titleText label.TextColor3 = Color3.fromRGB(255, 255, 255) label.TextSize = 13 label.Font = Enum.Font.GothamBold label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local arrow = Instance.new("TextLabel", mainFrame)
+    arrow.Size = UDim2.new(0, 40, 0, 42) arrow.Position = UDim2.new(1, -45, 0, 0) arrow.BackgroundTransparency = 1 arrow.Text = "▼" arrow.TextColor3 = TextColor arrow.TextSize = 18 arrow.Font = Enum.Font.GothamBold
+    
+    local container = Instance.new("Frame", mainFrame)
+    container.Position = UDim2.new(0, 10, 0, 46) container.Size = UDim2.new(1, -20, 0, 0) container.BackgroundTransparency = 1
+    
+    local list = Instance.new("UIListLayout", container) list.SortOrder = Enum.SortOrder.LayoutOrder list.Padding = UDim.new(0, 6)
+    
+    table.insert(SearchableElements, {frame = mainFrame, text = string.lower(titleText)})
+
+    local isOpen = false
+    triggerBtn.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        local targetHeight = isOpen and (list.AbsoluteContentSize.Y + 56) or 42
+        TweenService:Create(mainFrame, TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
+        arrow.Text = isOpen and "▲" or "▼" arrow.TextColor3 = isOpen and Color3.fromRGB(200, 100, 255) or TextColor
+    end)
+    
+    list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        if isOpen then mainFrame.Size = UDim2.new(1, 0, 0, list.AbsoluteContentSize.Y + 56) end
+        container.Size = UDim2.new(1, -20, 0, list.AbsoluteContentSize.Y)
+    end)
+    
+    return container
+end
+
+local function CreateDropdown(parent, text, options, default, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(1, 0, 0, 42) frame.BackgroundColor3 = BgElement frame.ClipsDescendants = true
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8) Instance.new("UIStroke", frame).Color = Color3.fromRGB(60, 40, 90)
+
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(0.5, 0, 0, 42) label.Position = UDim2.new(0, 12, 0, 0) label.BackgroundTransparency = 1 label.Text = text label.TextColor3 = TextColor label.TextSize = 13 label.Font = Enum.Font.GothamSemibold label.TextXAlignment = Enum.TextXAlignment.Left
+
+    local selector = Instance.new("TextButton", frame)
+    selector.Size = UDim2.new(0, 130, 0, 26) selector.Position = UDim2.new(1, -142, 0, 8) selector.BackgroundColor3 = BgDark selector.Text = "  " .. tostring(default) selector.TextColor3 = Color3.fromRGB(200, 150, 255) selector.TextSize = 12 selector.Font = Enum.Font.GothamBold selector.TextXAlignment = Enum.TextXAlignment.Left
+    Instance.new("UICorner", selector).CornerRadius = UDim.new(0, 6)
+
+    local arrow = Instance.new("TextLabel", selector)
+    arrow.Size = UDim2.new(0, 20, 1, 0) arrow.Position = UDim2.new(1, -22, 0, 0) arrow.BackgroundTransparency = 1 arrow.Text = "▼" arrow.TextColor3 = TextMuted arrow.TextSize = 10 arrow.Font = Enum.Font.GothamBold
+
+    local optionHolder = Instance.new("Frame", frame)
+    optionHolder.Position = UDim2.new(0, 12, 0, 42) optionHolder.Size = UDim2.new(1, -24, 0, 0) optionHolder.BackgroundTransparency = 1
+    local optLayout = Instance.new("UIListLayout", optionHolder) optLayout.SortOrder = Enum.SortOrder.LayoutOrder optLayout.Padding = UDim.new(0, 4)
+
+    table.insert(SearchableElements, {frame = frame, text = string.lower(text)})
+
+    local isOpen = false
+    local currentValue = default
+
+    local function setValue(val) currentValue = val selector.Text = "  " .. tostring(val) callback(val) end
+
+    for _, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton", optionHolder)
+        optBtn.Size = UDim2.new(1, 0, 0, 26) optBtn.BackgroundColor3 = BgDark optBtn.Text = tostring(opt) optBtn.TextColor3 = TextColor optBtn.TextSize = 12 optBtn.Font = Enum.Font.Gotham
+        Instance.new("UICorner", optBtn).CornerRadius = UDim.new(0, 4)
+
+        optBtn.MouseEnter:Connect(function() TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 30, 90)}):Play() end)
+        optBtn.MouseLeave:Connect(function() TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = BgDark}):Play() end)
+        optBtn.MouseButton1Click:Connect(function() setValue(opt) isOpen = false arrow.Text = "▼" TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42)}):Play() end)
+    end
+
+    selector.MouseButton1Click:Connect(function()
+        isOpen = not isOpen arrow.Text = isOpen and "▲" or "▼"
+        local targetH = isOpen and (42 + optLayout.AbsoluteContentSize.Y + 8) or 42
+        TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, targetH)}):Play()
+    end)
+    return setValue
+end
+
+-- СОЗДАНИЕ ВКЛАДОК
+local MainPage, MainBtn, MainBg, MainGrad, MainLbl = CreateTab("Main")
+local VisualPage, VisualBtn = CreateTab("Visual")
+local MiscPage, MiscBtn = CreateTab("Misc")
+local ConfigPage, ConfigBtn = CreateTab("Config")
+
+MainBg.BackgroundTransparency = 0
+MainLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+MainGrad.Enabled = true
+MainPage.Visible = true
+
+-- ВСПРАВОЧНАЯ ФУНКЦИЯ isPlayerManiac
+local function isPlayerManiac(player)
+    if not player or not player.Character then return false end
+    if player.Team and (string.find(string.lower(player.Team.Name), "killer") or string.find(string.lower(player.Team.Name), "maniac")) then return true end
+    local role = player:GetAttribute("Role") or player.Character:GetAttribute("Role")
+    if role and (string.match(string.lower(tostring(role)), "killer") or string.match(string.lower(tostring(role)), "maniac")) then return true end
+    local function checkItems(parent)
+        if not parent then return false end
+        for _, item in ipairs(parent:GetChildren()) do
+            if item:IsA("Tool") then
+                local tName = string.lower(item.Name)
+                if string.find(tName, "spear") or string.find(tName, "knife") or string.find(tName, "bat") or string.find(tName, "weapon") or string.find(tName, "axe") then return true end
+            end
+        end
+        return false
+    end
+    if checkItems(player.Character) or checkItems(player:FindFirstChild("Backpack")) then return true end
+    local hum = player.Character:FindFirstChild("Humanoid")
+    if hum and hum.MaxHealth > 100 and hum.MaxHealth < 9999 then return true end
+    return false
+end
+
+-- НАСТРОЙКИ НА ВКЛАДКЕ — MAIN
+local maniacDropdown = CreateDropdownSection(MainPage, "Maniac ESP")
+UI_Elements.toggleManiac = CreateToggle(maniacDropdown, "Enable Maniac ESP", false, function(state) ManiacESPEnabled = state end)
+UI_Elements.sliderMR = CreateSlider(maniacDropdown, "Color: Red (R)", 0, 255, 239, function(val) ManiacR = val end)
+UI_Elements.sliderMG = CreateSlider(maniacDropdown, "Color: Green (G)", 0, 255, 68, function(val) ManiacG = val end)
+UI_Elements.sliderMB = CreateSlider(maniacDropdown, "Color: Blue (B)", 0, 255, 68, function(val) ManiacB = val end)
+
+local survivorDropdown = CreateDropdownSection(MainPage, "Survivor ESP")
+UI_Elements.toggleSurvivor = CreateToggle(survivorDropdown, "Enable Survivor ESP", false, function(state) SurvivorESPEnabled = state end)
+UI_Elements.sliderSR = CreateSlider(survivorDropdown, "Color: Red (R)", 0, 255, 34, function(val) SurvivorR = val end)
+UI_Elements.sliderSG = CreateSlider(survivorDropdown, "Color: Green (G)", 0, 255, 197, function(val) SurvivorG = val end)
+UI_Elements.sliderSB = CreateSlider(survivorDropdown, "Color: Blue (B)", 0, 255, 94, function(val) SurvivorB = val end)
+
+local generatorDropdown = CreateDropdownSection(MainPage, "Generator ESP")
+UI_Elements.toggleGenerator = CreateToggle(generatorDropdown, "Enable Generator ESP", false, function(state) GeneratorESPEnabled = state end)
+UI_Elements.sliderGR = CreateSlider(generatorDropdown, "Color: Red (R)", 0, 255, 255, function(val) GeneratorR = val end)
+UI_Elements.sliderGG = CreateSlider(generatorDropdown, "Color: Green (G)", 0, 255, 255, function(val) GeneratorG = val end)
+UI_Elements.sliderGB = CreateSlider(generatorDropdown, "Color: Blue (B)", 0, 255, 0, function(val) GeneratorB = val end)
+
+local palletDropdown = CreateDropdownSection(MainPage, "Pallet ESP")
+UI_Elements.togglePallet = CreateToggle(palletDropdown, "Enable Pallet ESP", false, function(state) PalletESPEnabled = state end)
+UI_Elements.sliderPR = CreateSlider(palletDropdown, "Color: Red (R)", 0, 255, 255, function(val) PalletR = val end)
+UI_Elements.sliderPG = CreateSlider(palletDropdown, "Color: Green (G)", 0, 255, 128, function(val) PalletG = val end)
+UI_Elements.sliderPB = CreateSlider(palletDropdown, "Color: Blue (B)", 0, 255, 0, function(val) PalletB = val end)
+
+local hookDropdown = CreateDropdownSection(MainPage, "Hook ESP")
+UI_Elements.toggleHook = CreateToggle(hookDropdown, "Enable Hook ESP", false, function(state) HookESPEnabled = state end)
+UI_Elements.sliderHookR = CreateSlider(hookDropdown, "Color: Red (R)", 0, 255, 255, function(val) HookR = val end)
+UI_Elements.sliderHookG = CreateSlider(hookDropdown, "Color: Green (G)", 0, 255, 0, function(val) HookG = val end)
+UI_Elements.sliderHookB = CreateSlider(hookDropdown, "Color: Blue (B)", 0, 255, 0, function(val) HookB = val end)
+
+-- НАСТРОЙКИ НА ВКЛАДКЕ — VISUAL
+local flashDropdown = CreateDropdownSection(VisualPage, "Custom Flashlight")
+UI_Elements.toggleFlashlight = CreateToggle(flashDropdown, "Enable Flashlight", false, function(state) FlashlightEnabled = state end)
+UI_Elements.sliderFlashRange = CreateSlider(flashDropdown, "Flashlight Range", 10, 150, 60, function(val) FlashRange = val end)
+UI_Elements.sliderFlashR = CreateSlider(flashDropdown, "Color: Red (R)", 0, 255, 255, function(val) FlashR = val end)
+UI_Elements.sliderFlashG = CreateSlider(flashDropdown, "Color: Green (G)", 0, 255, 255, function(val) FlashG = val end)
+UI_Elements.sliderFlashB = CreateSlider(flashDropdown, "Color: Blue (B)", 0, 255, 255, function(val) FlashB = val end)
+
+local fogDropdown = CreateDropdownSection(VisualPage, "Custom Fog")
+UI_Elements.toggleFog = CreateToggle(fogDropdown, "Enable Custom Fog", false, function(state) 
+    CustomFogEnabled = state 
+    if not state then
+        Lighting.FogStart = DefaultLighting.FogStart
+        Lighting.FogEnd = DefaultLighting.FogEnd
+        if not SkyboxEnabled then
+            Lighting.FogColor = DefaultLighting.FogColor
+            local defaultAtmo = Lighting:FindFirstChildWhichIsA("Atmosphere")
+            if not defaultAtmo and DefaultAtmosphere and DefaultAtmosphere.Parent == nil then
+                DefaultAtmosphere.Parent = Lighting
+            end
+        else
+            Lighting.FogColor = Color3.fromRGB(HorR, HorG, HorB)
+        end
+    end
+end)
+UI_Elements.sliderFogStart = CreateSlider(fogDropdown, "Fog Start (Дальность)", 0, 2000, 0, function(val) FogStartDist = val end)
+UI_Elements.sliderFogEnd = CreateSlider(fogDropdown, "Fog End (Плотность)", 10, 5000, 1000, function(val) FogEndDist = val end)
+UI_Elements.sliderFogR = CreateSlider(fogDropdown, "Color: Red (R)", 0, 255, 150, function(val) FogR = val end)
+UI_Elements.sliderFogG = CreateSlider(fogDropdown, "Color: Green (G)", 0, 255, 150, function(val) FogG = val end)
+UI_Elements.sliderFogB = CreateSlider(fogDropdown, "Color: Blue (B)", 0, 255, 150, function(val) FogB = val end)
+
+-- CUSTOM SKYBOX
+local skyboxDropdown = CreateDropdownSection(VisualPage, "Custom Skybox")
+
+local function GetTargetBrightness() return (SkyBrightness / 100) * 10 end
+local function GetTargetExposure() return (SkyExposure / 100) * 2 - 1 end
+local function GetTargetSkyColor() return Color3.fromRGB(SkyR, SkyG, SkyB) end
+local function GetTargetHorizonColor() return Color3.fromRGB(HorR, HorG, HorB) end
+local function GetTargetAmbient() return Color3.fromRGB(math.floor(SkyR * 0.3), math.floor(SkyG * 0.3), math.floor(SkyB * 0.3)) end
+
+local function ApplySkybox()
+    if not SkyboxEnabled or _skyboxApplying then return end
+    _skyboxApplying = true
+    pcall(function()
+        for _, obj in ipairs(Lighting:GetChildren()) do if obj:IsA("Sky") and obj.Name ~= "EssentialCustomSky" then obj:Destroy() end end
+        for _, obj in ipairs(Lighting:GetChildren()) do if obj:IsA("Atmosphere") then obj.Parent = nil end end
+
+        if not CustomSky or not CustomSky.Parent or CustomSky.Parent ~= Lighting then
+            if CustomSky then pcall(function() CustomSky:Destroy() end) end
+            CustomSky = Instance.new("Sky") CustomSky.Name = "EssentialCustomSky" CustomSky.Parent = Lighting
+        end
+
+        CustomSky.StarCount = SkySettings.StarCount CustomSky.SunAngularSize = SkySettings.SunAngularSize CustomSky.MoonAngularSize = SkySettings.MoonAngularSize CustomSky.CelestialBodiesShown = SkySettings.CelestialBodiesShown
+
+        Lighting.Brightness = GetTargetBrightness() Lighting.ExposureCompensation = GetTargetExposure() Lighting.ColorShift_Top = GetTargetSkyColor() Lighting.ColorShift_Bottom = GetTargetHorizonColor() Lighting.OutdoorAmbient = GetTargetHorizonColor() Lighting.Ambient = GetTargetAmbient()
+        if not CustomFogEnabled then Lighting.FogColor = GetTargetHorizonColor() end
+    end)
+    _skyboxApplying = false
+end
+
+local function ResetSkybox()
+    _skyboxApplying = true
+    pcall(function()
+        if CustomSky then pcall(function() CustomSky:Destroy() end) CustomSky = nil end
+        for _, obj in ipairs(Lighting:GetChildren()) do if obj:IsA("Sky") and obj.Name == "EssentialCustomSky" then obj:Destroy() end end
+        if DefaultAtmosphere and DefaultAtmosphere.Parent == nil then pcall(function() DefaultAtmosphere.Parent = Lighting end) end
+
+        Lighting.Brightness = DefaultLighting.Brightness Lighting.ExposureCompensation = DefaultLighting.ExposureCompensation Lighting.Ambient = DefaultLighting.Ambient Lighting.OutdoorAmbient = DefaultLighting.OutdoorAmbient Lighting.ColorShift_Top = DefaultLighting.ColorShift_Top Lighting.ColorShift_Bottom = DefaultLighting.ColorShift_Bottom Lighting.ClockTime = DefaultLighting.ClockTime
+        if not CustomFogEnabled then Lighting.FogColor = DefaultLighting.FogColor end
+    end)
+    _skyboxApplying = false
+end
+
+local function ApplyPreset(preset)
+    CurrentPreset = preset
+    if preset == "Default" then ResetSkybox() return end
+
+    local presets = {
+        Day = { skyR = 120, skyG = 180, skyB = 255, horR = 220, horG = 235, horB = 255, bright = 60, exp = 50, clock = 14, starCount = 300, sunSize = 18, moonSize = 11, celestial = true },
+        Sunset = { skyR = 255, skyG = 140, skyB = 60, horR = 255, horG = 200, horB = 120, bright = 40, exp = 65, clock = 17.5, starCount = 700, sunSize = 22, moonSize = 11, celestial = true },
+        Night = { skyR = 15, skyG = 20, skyB = 60, horR = 40, horG = 50, horB = 90, bright = 15, exp = 25, clock = 0, starCount = 3000, sunSize = 0, moonSize = 13, celestial = true },
+        Space = { skyR = 12, skyG = 8, skyB = 40, horR = 55, horG = 25, horB = 95, bright = 5, exp = 12, clock = 0, starCount = 5000, sunSize = 0, moonSize = 0, celestial = false },
+        Purple = { skyR = 90, skyG = 30, skyB = 160, horR = 170, horG = 70, horB = 210, bright = 45, exp = 55, clock = 19, starCount = 1800, sunSize = 8, moonSize = 14, celestial = true },
+    }
+    local p = presets[preset]
+    if p then
+        SkyR = p.skyR SkyG = p.skyG SkyB = p.skyB HorR = p.horR HorG = p.horG HorB = p.horB SkyBrightness = p.bright SkyExposure = p.exp if p.clock then Lighting.ClockTime = p.clock end
+        SkySettings.StarCount = p.starCount or 1000 SkySettings.SunAngularSize = p.sunSize or 11 SkySettings.MoonAngularSize = p.moonSize or 11 SkySettings.CelestialBodiesShown = p.celestial ~= false
+
+        if UI_Elements.skyBrightnessSlider then UI_Elements.skyBrightnessSlider(SkyBrightness) end
+        if UI_Elements.skyExposureSlider then UI_Elements.skyExposureSlider(SkyExposure) end
+        if UI_Elements.skyRSlider then UI_Elements.skyRSlider(SkyR) end
+        if UI_Elements.skyGSlider then UI_Elements.skyGSlider(SkyG) end
+        if UI_Elements.skyBSlider then UI_Elements.skyBSlider(SkyB) end
+        if UI_Elements.horRSlider then UI_Elements.horRSlider(HorR) end
+        if UI_Elements.horGSlider then UI_Elements.horGSlider(HorG) end
+        if UI_Elements.horBSlider then UI_Elements.horBSlider(HorB) end
+    end
+    ApplySkybox()
+end
+
+local function GuardLightingProp(prop, valueFn)
+    local conn = Lighting:GetPropertyChangedSignal(prop):Connect(function()
+        if prop == "FogColor" and CustomFogEnabled then return end
+        if (prop == "FogStart" or prop == "FogEnd") and CustomFogEnabled then return end
+        if SkyboxEnabled and not _skyboxApplying then _skyboxApplying = true pcall(function() Lighting[prop] = valueFn() end) _skyboxApplying = false end
+    end)
+    table.insert(skyboxGuardConnections, conn)
+end
+
+local function ConnectSkyboxGuards()
+    for _, conn in ipairs(skyboxGuardConnections) do if conn then pcall(function() conn:Disconnect() end) end end
+    skyboxGuardConnections = {}
+    GuardLightingProp("Brightness", GetTargetBrightness) GuardLightingProp("ExposureCompensation", GetTargetExposure) GuardLightingProp("ColorShift_Top", GetTargetSkyColor) GuardLightingProp("ColorShift_Bottom", GetTargetHorizonColor) GuardLightingProp("OutdoorAmbient", GetTargetHorizonColor) GuardLightingProp("FogColor", GetTargetHorizonColor) GuardLightingProp("Ambient", GetTargetAmbient)
+
+    local childAddedConn = Lighting.ChildAdded:Connect(function(child)
+        if not SkyboxEnabled or _skyboxApplying then return end
+        if child:IsA("Sky") and child.Name ~= "EssentialCustomSky" then task.defer(function() if child and child.Parent then child:Destroy() end end) end
+        if child:IsA("Atmosphere") then task.defer(function() if child and child.Parent then child.Parent = nil end end) end
+    end)
+    table.insert(skyboxGuardConnections, childAddedConn)
+end
+
+local function DisconnectSkyboxGuards()
+    for _, conn in ipairs(skyboxGuardConnections) do if conn then pcall(function() conn:Disconnect() end) end end
+    skyboxGuardConnections = {}
+end
+
+UI_Elements.toggleSky = CreateToggle(skyboxDropdown, "Enable Skybox", false, function(state) SkyboxEnabled = state if state then ConnectSkyboxGuards() ApplyPreset(CurrentPreset) else DisconnectSkyboxGuards() ResetSkybox() end end)
+UI_Elements.skyBrightnessSlider = CreateSlider(skyboxDropdown, "Brightness", 0, 100, 50, function(v) SkyBrightness = v ApplySkybox() end)
+UI_Elements.skyExposureSlider = CreateSlider(skyboxDropdown, "Exposure", 0, 100, 50, function(v) SkyExposure = v ApplySkybox() end)
+UI_Elements.skyRSlider = CreateSlider(skyboxDropdown, "Sky Color Red (R)", 0, 255, 100, function(v) SkyR = v ApplySkybox() end)
+UI_Elements.skyGSlider = CreateSlider(skyboxDropdown, "Sky Color Green (G)", 0, 255, 160, function(v) SkyG = v ApplySkybox() end)
+UI_Elements.skyBSlider = CreateSlider(skyboxDropdown, "Sky Color Blue (B)", 0, 255, 255, function(v) SkyB = v ApplySkybox() end)
+UI_Elements.horRSlider = CreateSlider(skyboxDropdown, "Horizon Color Red (R)", 0, 255, 200, function(v) HorR = v ApplySkybox() end)
+UI_Elements.horGSlider = CreateSlider(skyboxDropdown, "Horizon Color Green (G)", 0, 255, 220, function(v) HorG = v ApplySkybox() end)
+UI_Elements.horBSlider = CreateSlider(skyboxDropdown, "Horizon Color Blue (B)", 0, 255, 255, function(v) HorB = v ApplySkybox() end)
+UI_Elements.presetDropdown = CreateDropdown(skyboxDropdown, "Skybox Preset", {"Default", "Day", "Sunset", "Night", "Space", "Purple"}, "Default", function(selected) ApplyPreset(selected) end)
+
+local hudDropdown = CreateDropdownSection(VisualPage, "Essential HUD")
+local HUDEnabled, HUDFPS, HUDPing, HUDKiller = false, true, true, true
+local hudContainer, hudTitle, hudFPS, hudPing, hudKiller, hudUpdateConnection = nil, nil, nil, nil, nil, nil
+
+local function BuildEssentialHUD()
+    if hudContainer then return end
+    hudContainer = Instance.new("Frame") hudContainer.Name = "EssentialHUD" hudContainer.AnchorPoint = Vector2.new(0, 0) hudContainer.Position = UDim2.new(0, 16, 0, 60) hudContainer.BackgroundColor3 = BgMain hudContainer.BorderSizePixel = 0 hudContainer.AutomaticSize = Enum.AutomaticSize.XY hudContainer.ClipsDescendants = true
+    Instance.new("UICorner", hudContainer).CornerRadius = UDim.new(0, 8) Instance.new("UIStroke", hudContainer).Color = Color3.fromRGB(120, 60, 180)
+    local padding = Instance.new("UIPadding", hudContainer) padding.PaddingTop = UDim.new(0, 10) padding.PaddingBottom = UDim.new(0, 10) padding.PaddingLeft = UDim.new(0, 12) padding.PaddingRight = UDim.new(0, 12)
+    local listLayout = Instance.new("UIListLayout", hudContainer) listLayout.SortOrder = Enum.SortOrder.LayoutOrder listLayout.Padding = UDim.new(0, 4)
+
+    hudTitle = Instance.new("TextLabel", hudContainer) hudTitle.LayoutOrder = 1 hudTitle.Size = UDim2.new(0, 130, 0, 18) hudTitle.BackgroundTransparency = 1 hudTitle.Text = "Essential" hudTitle.TextColor3 = Color3.fromRGB(200, 150, 255) hudTitle.TextSize = 13 hudTitle.Font = Enum.Font.GothamBold hudTitle.TextXAlignment = Enum.TextXAlignment.Left hudTitle.AutomaticSize = Enum.AutomaticSize.X
+    hudFPS = Instance.new("TextLabel", hudContainer) hudFPS.LayoutOrder = 2 hudFPS.Size = UDim2.new(0, 130, 0, 18) hudFPS.BackgroundTransparency = 1 hudFPS.Text = "FPS: --" hudFPS.TextColor3 = TextColor hudFPS.TextSize = 12 hudFPS.Font = Enum.Font.GothamBold hudFPS.TextXAlignment = Enum.TextXAlignment.Left hudFPS.AutomaticSize = Enum.AutomaticSize.X
+    hudPing = Instance.new("TextLabel", hudContainer) hudPing.LayoutOrder = 3 hudPing.Size = UDim2.new(0, 130, 0, 18) hudPing.BackgroundTransparency = 1 hudPing.Text = "Ping: -- ms" hudPing.TextColor3 = TextColor hudPing.TextSize = 12 hudPing.Font = Enum.Font.GothamBold hudPing.TextXAlignment = Enum.TextXAlignment.Left hudPing.AutomaticSize = Enum.AutomaticSize.X
+    hudKiller = Instance.new("TextLabel", hudContainer) hudKiller.LayoutOrder = 4 hudKiller.Size = UDim2.new(0, 130, 0, 18) hudKiller.BackgroundTransparency = 1 hudKiller.Text = "Killer: Unknown" hudKiller.TextColor3 = TextColor hudKiller.TextSize = 12 hudKiller.Font = Enum.Font.GothamBold hudKiller.TextXAlignment = Enum.TextXAlignment.Left hudKiller.AutomaticSize = Enum.AutomaticSize.X
+
+    hudContainer.Parent = ScreenGui
+end
+
+local function RefreshHUDVisibility()
+    if not hudContainer then return end
+    hudContainer.Visible = HUDEnabled hudFPS.Visible = HUDFPS hudPing.Visible = HUDPing hudKiller.Visible = HUDKiller
+end
+
+local function StartEssentialHUDLoop()
+    if hudUpdateConnection then pcall(function() hudUpdateConnection:Disconnect() end) hudUpdateConnection = nil end
+    local lastFPSRefresh, lastPingRefresh, lastKillerRefresh, frameCount, frameTimeSum = 0, 0, 0, 0, 0
+
+    hudUpdateConnection = RunService.RenderStepped:Connect(function(delta)
+        if not HUDEnabled or not hudContainer or not hudContainer.Visible then return end
+        local now = os.clock()
+        frameCount = frameCount + 1 frameTimeSum = frameTimeSum + delta
+        if now - lastFPSRefresh >= 0.5 then lastFPSRefresh = now if HUDFPS then local avgFPS = math.floor((frameCount / frameTimeSum) + 0.5) hudFPS.Text = "FPS: " .. tostring(avgFPS) end frameCount = 0 frameTimeSum = 0 end
+        if HUDPing and now - lastPingRefresh >= 0.5 then
+            lastPingRefresh = now local ms = 0
+            pcall(function()
+                local nPing = LocalPlayer:GetNetworkPing()
+                if nPing and nPing > 0 then ms = nPing * 1000 else
+                    local stat = game:GetService("Stats").Network.ServerStatsItem["Data Ping"] if stat then local str = stat:GetValueString() local n = tonumber(tostring(str):match("%d+")) if n then ms = n end end
+                end
+            end)
+            hudPing.Text = "Ping: " .. tostring(math.floor(ms + 0.5)) .. " ms"
+        end
+        if HUDKiller and now - lastKillerRefresh >= 1.0 then
+            lastKillerRefresh = now local detectedKiller = "Unknown"
+            if isPlayerManiac then
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character then if isPlayerManiac(player) then detectedKiller = player.Name break end end
+                end
+            end
+            hudKiller.Text = "Killer: " .. detectedKiller
+        end
+    end)
+end
+
+local function TerminateEssentialHUD()
+    if hudUpdateConnection then pcall(function() hudUpdateConnection:Disconnect() end) hudUpdateConnection = nil end
+    if hudContainer then pcall(function() hudContainer:Destroy() end) hudContainer = nil end
+end
+
+local function SetupEssentialHUD()
+    if HUDEnabled then BuildEssentialHUD() RefreshHUDVisibility() StartEssentialHUDLoop() else RefreshHUDVisibility() if hudUpdateConnection then pcall(function() hudUpdateConnection:Disconnect() end) hudUpdateConnection = nil end end
+end
+
+UI_Elements.toggleEnableHUD = CreateToggle(hudDropdown, "Enable HUD", false, function(state) HUDEnabled = state SetupEssentialHUD() end)
+UI_Elements.toggleShowFPS = CreateToggle(hudDropdown, "Show FPS", true, function(state) HUDFPS = state RefreshHUDVisibility() end)
+UI_Elements.toggleShowPing = CreateToggle(hudDropdown, "Show Ping", true, function(state) HUDPing = state RefreshHUDVisibility() end)
+UI_Elements.toggleShowKiller = CreateToggle(hudDropdown, "Show Killer Info", true, function(state) HUDKiller = state RefreshHUDVisibility() end)
+
+-- ВКЛАДКА MISC
+local aspectDropdown = CreateDropdownSection(MiscPage, "Aspect Ratio (Stretched)")
+UI_Elements.toggleStretch = CreateToggle(aspectDropdown, "Enable Stretch", false, function(state) StretchEnabled = state end)
+UI_Elements.dropdownStretch = CreateDropdown(aspectDropdown, "Resolution", {"16:9 (Default)", "16:10", "4:3", "5:4", "3:4", "Custom"}, "16:9 (Default)", function(val) StretchPreset = val end)
+UI_Elements.sliderStretch = CreateSlider(aspectDropdown, "Custom Scale (%)", 30, 150, 100, function(val) StretchCustomValue = val end)
+
+local crosshairDropdown = CreateDropdownSection(MiscPage, "Custom Crosshair")
+UI_Elements.toggleCrosshair = CreateToggle(crosshairDropdown, "Enable Crosshair", false, function(state) CrosshairEnabled = state end)
+UI_Elements.sliderCHLength = CreateSlider(crosshairDropdown, "Crosshair Length", 2, 50, 10, function(val) CrosshairLength = val end)
+UI_Elements.sliderCHWidth = CreateSlider(crosshairDropdown, "Crosshair Thickness", 1, 10, 2, function(val) CrosshairWidth = val end)
+UI_Elements.sliderCHR = CreateSlider(crosshairDropdown, "Color: Red (R)", 0, 255, 0, function(val) CrosshairR = val end)
+UI_Elements.sliderCHG = CreateSlider(crosshairDropdown, "Color: Green (G)", 0, 255, 255, function(val) CrosshairG = val end)
+UI_Elements.sliderCHB = CreateSlider(crosshairDropdown, "Color: Blue (B)", 0, 255, 0, function(val) CrosshairB = val end)
+
+UI_Elements.toggleFOVSet = CreateToggle(MiscPage, "Enable FOV Changer", false, function(state) FOVEnabled = state end)
+UI_Elements.sliderSet = CreateSlider(MiscPage, "FOV Changer Value", 70, 120, 70, function(val) currentFOV = val end)
+UI_Elements.toggleSpeedSet = CreateToggle(MiscPage, "Enable Speedhack", false, function(state) SpeedhackEnabled = state end)
+UI_Elements.sliderSpeedSet = CreateSlider(MiscPage, "WalkSpeed Value", 16, 150, 32, function(val) SpeedhackValue = val end)
+
+-- NOCLIP
+local function RestoreNoclipCollisions()
+    if LocalPlayer.Character then for partId, originalState in pairs(noclipOriginalCollide) do if partId and partId.Parent then partId.CanCollide = originalState end end end
+    noclipOriginalCollide = {}
+end
+
+local function ApplyNoclip()
+    if not LocalPlayer.Character then return end
+    for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do if part:IsA("BasePart") then if noclipOriginalCollide[part] == nil then noclipOriginalCollide[part] = part.CanCollide end part.CanCollide = false end end
+end
+
+UI_Elements.toggleNoclip = CreateToggle(MiscPage, "Enable Noclip", false, function(state)
+    NoclipEnabled = state
+    if state then if not noclipConnection then noclipConnection = RunService.Stepped:Connect(function() if NoclipEnabled then ApplyNoclip() end end) end
+    else if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end RestoreNoclipCollisions() end
+end)
+
+local presetToScale = {
+    ["16:9 (Default)"] = 1.0,
+    ["16:10"] = 0.9,
+    ["4:3"] = 0.75,
+    ["5:4"] = 0.703,
+    ["3:4"] = 0.422,
+    ["Custom"] = 1.0
+}
+
+local function getStretchRatio()
+    if StretchPreset == "Custom" then return StretchCustomValue / 100 end
+    return presetToScale[StretchPreset] or 1.0
+end
+
+-- СИСТЕМА КОНФИГОВ
+local configFolder = "EssentialConfigs"
+pcall(function() if makefolder and not isfolder(configFolder) then makefolder(configFolder) end end)
+
+local function GetConfigs()
+    local files = {}
+    pcall(function() if listfiles then for _, file in ipairs(listfiles(configFolder)) do local name = file:match("([^/\\]+)%.json$") if name then table.insert(files, name) end end end end) return files
+end
+
+local CurrentConfigName = ""
+local SetConfigNameText = CreateInput(ConfigPage, "Enter Config Name...", function(val) CurrentConfigName = val end)
+local StatusLabel = CreateLabel(ConfigPage, "Status: Ready")
+local ConfigListSection = CreateDropdownSection(ConfigPage, "Available Configs")
+
+local function RefreshConfigList()
+    for _, child in ipairs(ConfigListSection:GetChildren()) do if child:IsA("TextButton") and child.Name == "CfgFileBtn" then child:Destroy() end end
+    local files = GetConfigs()
+    for _, cfgName in ipairs(files) do
+        local btn = CreateButton(ConfigListSection, cfgName, BgDark, function() SetConfigNameText(cfgName) StatusLabel("Status: Selected '" .. cfgName .. "'") end) btn.Name = "CfgFileBtn"
+    end
+end
+
+CreateButton(ConfigPage, "Save Config", BgElement, function()
+    if CurrentConfigName == "" or CurrentConfigName:match("^%s*$") then StatusLabel("Status: Error - Name cannot be empty!") return end
+    local files = GetConfigs() local exists = false
+    for _, f in ipairs(files) do if f == CurrentConfigName then exists = true break end end
+    if not exists and #files >= 5 then StatusLabel("Status: Error - Limit reached (Max 5 configs)!") return end
+    local data = {
+        ManiacESP = ManiacESPEnabled, MR = ManiacR, MG = ManiacG, MB = ManiacB,
+        SurvESP = SurvivorESPEnabled, SR = SurvivorR, SG = SurvivorG, SB = SurvivorB,
+        GenESP = GeneratorESPEnabled, GR = GeneratorR, GG = GeneratorG, GB = GeneratorB,
+        PalletESP = PalletESPEnabled, PR = PalletR, PG = PalletG, PB = PalletB,
+        FOVOn = FOVEnabled, FOV = currentFOV, Speedhack = SpeedhackEnabled, WalkSpeed = SpeedhackValue,
+        FlashOn = FlashlightEnabled, FRange = FlashRange, FR = FlashR, FG = FlashG, FB = FlashB,
+        HookESP = HookESPEnabled, HR = HookR, HG = HookG, HB = HookB,
+        Noclip = NoclipEnabled, SkyOn = SkyboxEnabled, SkyPreset = CurrentPreset,
+        SkyBright = SkyBrightness, SkyExp = SkyExposure, SkyR = SkyR, SkyG = SkyG, SkyB = SkyB, HorR = HorR, HorG = HorG, HorB = HorB,
+        HUDOn = HUDEnabled, HUDFPS = HUDFPS, HUDPing = HUDPing, HUDKiller = HUDKiller,
+        FogOn = CustomFogEnabled, FogStart = FogStartDist, FogEnd = FogEndDist, FogR = FogR, FogG = FogG, FogB = FogB,
+        StretchOn = StretchEnabled, StretchPreset = StretchPreset, StretchCustom = StretchCustomValue,
+        CrosshairOn = CrosshairEnabled, CHLen = CrosshairLength, CHWid = CrosshairWidth, CHR = CrosshairR, CHG = CrosshairG, CHB = CrosshairB
+    }
+    pcall(function() if writefile then writefile(configFolder .. "/" .. CurrentConfigName .. ".json", HttpService:JSONEncode(data)) StatusLabel("Status: Saved '" .. CurrentConfigName .. "'!") RefreshConfigList() end end)
+end)
+
+CreateButton(ConfigPage, "Load Config", BgElement, function()
+    if CurrentConfigName == "" then return end
+    local path = configFolder .. "/" .. CurrentConfigName .. ".json"
+    pcall(function()
+        if readfile and isfile and isfile(path) then
+            local data = HttpService:JSONDecode(readfile(path))
+            if type(data) == "table" then
+                if UI_Elements.toggleManiac then UI_Elements.toggleManiac(data.ManiacESP or false) end
+                if UI_Elements.sliderMR then UI_Elements.sliderMR(data.MR or 239) end
+                if UI_Elements.sliderMG then UI_Elements.sliderMG(data.MG or 68) end
+                if UI_Elements.sliderMB then UI_Elements.sliderMB(data.MB or 68) end
+                
+                if UI_Elements.toggleSurvivor then UI_Elements.toggleSurvivor(data.SurvESP or false) end
+                if UI_Elements.sliderSR then UI_Elements.sliderSR(data.SR or 34) end
+                if UI_Elements.sliderSG then UI_Elements.sliderSG(data.SG or 197) end
+                if UI_Elements.sliderSB then UI_Elements.sliderSB(data.SB or 94) end
+                
+                if UI_Elements.toggleGenerator then UI_Elements.toggleGenerator(data.GenESP or false) end
+                if UI_Elements.sliderGR then UI_Elements.sliderGR(data.GR or 255) end
+                if UI_Elements.sliderGG then UI_Elements.sliderGG(data.GG or 255) end
+                if UI_Elements.sliderGB then UI_Elements.sliderGB(data.GB or 0) end
+                
+                if UI_Elements.togglePallet then UI_Elements.togglePallet(data.PalletESP or false) end
+                if UI_Elements.sliderPR then UI_Elements.sliderPR(data.PR or 255) end
+                if UI_Elements.sliderPG then UI_Elements.sliderPG(data.PG or 128) end
+                if UI_Elements.sliderPB then UI_Elements.sliderPB(data.PB or 0) end
+                
+                if UI_Elements.toggleFOVSet then UI_Elements.toggleFOVSet(data.FOVOn or false) end
+                if UI_Elements.sliderSet then UI_Elements.sliderSet(data.FOV or 70) end
+                
+                if UI_Elements.toggleSpeedSet then UI_Elements.toggleSpeedSet(data.Speedhack or false) end
+                if UI_Elements.sliderSpeedSet then UI_Elements.sliderSpeedSet(data.WalkSpeed or 32) end
+                
+                if UI_Elements.toggleFlashlight then UI_Elements.toggleFlashlight(data.FlashOn or false) end
+                if UI_Elements.sliderFlashRange then UI_Elements.sliderFlashRange(data.FRange or 60) end
+                if UI_Elements.sliderFlashR then UI_Elements.sliderFlashR(data.FR or 255) end
+                if UI_Elements.sliderFlashG then UI_Elements.sliderFlashG(data.FG or 255) end
+                if UI_Elements.sliderFlashB then UI_Elements.sliderFlashB(data.FB or 255) end
+                
+                if UI_Elements.toggleHook then UI_Elements.toggleHook(data.HookESP or false) end
+                if UI_Elements.sliderHookR then UI_Elements.sliderHookR(data.HR or 255) end
+                if UI_Elements.sliderHookG then UI_Elements.sliderHookG(data.HG or 0) end
+                if UI_Elements.sliderHookB then UI_Elements.sliderHookB(data.HB or 0) end
+
+                if UI_Elements.toggleNoclip then UI_Elements.toggleNoclip(data.Noclip or false) end
+                
+                if UI_Elements.toggleFog then UI_Elements.toggleFog(data.FogOn or false) end
+                if UI_Elements.sliderFogStart then UI_Elements.sliderFogStart(data.FogStart or 0) end
+                if UI_Elements.sliderFogEnd then UI_Elements.sliderFogEnd(data.FogEnd or 1000) end
+                if UI_Elements.sliderFogR then UI_Elements.sliderFogR(data.FogR or 150) end
+                if UI_Elements.sliderFogG then UI_Elements.sliderFogG(data.FogG or 150) end
+                if UI_Elements.sliderFogB then UI_Elements.sliderFogB(data.FogB or 150) end
+
+                if UI_Elements.toggleStretch then UI_Elements.toggleStretch(data.StretchOn or false) end
+                if UI_Elements.dropdownStretch then UI_Elements.dropdownStretch(data.StretchPreset or "16:9 (Default)") end
+                if UI_Elements.sliderStretch then UI_Elements.sliderStretch(data.StretchCustom or 100) end
+
+                if UI_Elements.toggleCrosshair then UI_Elements.toggleCrosshair(data.CrosshairOn or false) end
+                if UI_Elements.sliderCHLength then UI_Elements.sliderCHLength(data.CHLen or 10) end
+                if UI_Elements.sliderCHWidth then UI_Elements.sliderCHWidth(data.CHWid or 2) end
+                if UI_Elements.sliderCHR then UI_Elements.sliderCHR(data.CHR or 0) end
+                if UI_Elements.sliderCHG then UI_Elements.sliderCHG(data.CHG or 255) end
+                if UI_Elements.sliderCHB then UI_Elements.sliderCHB(data.CHB or 0) end
+
+                if UI_Elements.toggleSky then UI_Elements.toggleSky(data.SkyOn or false) end
+                if data.SkyPreset and data.SkyPreset ~= "Custom" then 
+                    ApplyPreset(data.SkyPreset) 
+                else
+                    if UI_Elements.skyBrightnessSlider then UI_Elements.skyBrightnessSlider(data.SkyBright or 50) end
+                    if UI_Elements.skyExposureSlider then UI_Elements.skyExposureSlider(data.SkyExp or 50) end
+                    if UI_Elements.skyRSlider then UI_Elements.skyRSlider(data.SkyR or 100) end
+                    if UI_Elements.skyGSlider then UI_Elements.skyGSlider(data.SkyG or 160) end
+                    if UI_Elements.skyBSlider then UI_Elements.skyBSlider(data.SkyB or 255) end
+                    if UI_Elements.horRSlider then UI_Elements.horRSlider(data.HorR or 200) end
+                    if UI_Elements.horGSlider then UI_Elements.horGSlider(data.HorG or 220) end
+                    if UI_Elements.horBSlider then UI_Elements.horBSlider(data.HorB or 255) end
+                end
+                if UI_Elements.toggleEnableHUD then UI_Elements.toggleEnableHUD(data.HUDOn or false) end
+                if UI_Elements.toggleShowFPS then UI_Elements.toggleShowFPS(data.HUDFPS ~= false) end
+                if UI_Elements.toggleShowPing then UI_Elements.toggleShowPing(data.HUDPing ~= false) end
+                if UI_Elements.toggleShowKiller then UI_Elements.toggleShowKiller(data.HUDKiller ~= false) end
+                StatusLabel("Status: Loaded '" .. CurrentConfigName .. "'!")
+            end
+        else StatusLabel("Status: Error - Config not found!") end
+    end)
+end)
+
+CreateButton(ConfigPage, "Delete Config", BgElement, function()
+    if CurrentConfigName == "" then return end
+    local path = configFolder .. "/" .. CurrentConfigName .. ".json"
+    pcall(function()
+        if delfile and isfile and isfile(path) then delfile(path) StatusLabel("Status: Deleted '" .. CurrentConfigName .. "'!") SetConfigNameText("") RefreshConfigList() else StatusLabel("Status: Error - Config not found!") end
+    end)
+end)
+
+-- НОВЫЕ КНОПКИ: ЭКСПОРТ И ИМПОРТ ИЗ БУФЕРА ОБМЕНА
+CreateButton(ConfigPage, "Share: Export to Clipboard", BgElement, function()
+    if CurrentConfigName == "" then StatusLabel("Status: Error - Name cannot be empty!") return end
+    local path = configFolder .. "/" .. CurrentConfigName .. ".json"
+    pcall(function()
+        if readfile and isfile and isfile(path) then
+            local data = readfile(path)
+            if setclipboard then
+                setclipboard(data)
+                StatusLabel("Status: Copied config to clipboard! Paste it to your friend.")
+            else
+                StatusLabel("Status: Your executor doesn't support setclipboard.")
+            end
+        else
+            StatusLabel("Status: Error - Config not found!")
+        end
+    end)
+end)
+
+CreateButton(ConfigPage, "Share: Import from Clipboard", BgElement, function()
+    if CurrentConfigName == "" then StatusLabel("Status: Error - Enter a name first!") return end
+    pcall(function()
+        local data = getclipboard and getclipboard() or ""
+        if data ~= "" and (string.sub(data, 1, 1) == "{" or string.match(data, "^%s*{")) then
+            if writefile then
+                writefile(configFolder .. "/" .. CurrentConfigName .. ".json", data)
+                StatusLabel("Status: Successfully imported config!")
+                RefreshConfigList()
+            end
+        else
+            StatusLabel("Status: Error - Invalid clipboard data!")
+        end
+    end)
+end)
+
+RefreshConfigList()
+
+local sep = Instance.new("Frame", ConfigPage)
+sep.Size = UDim2.new(1, 0, 0, 1) sep.BackgroundColor3 = Color3.fromRGB(60, 40, 90) sep.BorderSizePixel = 0
+
+-- ============================================================
+-- СКАНИРОВАНИЕ КАРТЫ
+-- ============================================================
+local function CheckObject(obj)
+    if not obj or not obj.Parent then return end
+
+    local name = string.lower(obj.Name)
+
+    if string.match(name, "generator") or name == "gen" then 
+        table.insert(trackedGenerators, obj)
+        return
+    elseif string.match(name, "pallet") and obj:IsA("Model") then 
+        table.insert(trackedPallets, obj)
+        return
+    elseif string.match(name, "hook") then 
+        table.insert(trackedHooks, obj)
+        return
+    end
+end
+
+task.spawn(function()
+    local allObjs = workspace:GetDescendants()
+    for i = 1, #allObjs do CheckObject(allObjs[i]) if i % 1000 == 0 then task.wait() end end
+end)
+table.insert(connections, workspace.DescendantAdded:Connect(CheckObject))
+
+-- ============================================================
+-- ВЫГРУЗКА СКРИПТА
+-- ============================================================
+local function UnloadScript()
+    for _, conn in ipairs(connections) do if conn then pcall(function() conn:Disconnect() end) end end
+    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    RestoreNoclipCollisions() DisconnectSkyboxGuards() ResetSkybox() TerminateEssentialHUD()
+    
+    Lighting.FogStart = DefaultLighting.FogStart
+    Lighting.FogEnd = DefaultLighting.FogEnd
+    if not SkyboxEnabled then Lighting.FogColor = DefaultLighting.FogColor end
+    
+    for _, p in pairs(Players:GetPlayers()) do if p.Character and p.Character:FindFirstChild("EssentialESP") then p.Character.EssentialESP:Destroy() end end
+    for _, gen in ipairs(trackedGenerators) do if gen and gen.Parent and gen:FindFirstChild("EssentialESP") then gen.EssentialESP:Destroy() end end
+    for _, pallet in ipairs(trackedPallets) do if pallet and pallet.Parent and pallet:FindFirstChild("EssentialESP") then pallet.EssentialESP:Destroy() end end
+    for _, hookObj in ipairs(trackedHooks) do if hookObj and hookObj.Parent and hookObj:FindFirstChild("EssentialESP") then hookObj.EssentialESP:Destroy() end end
+    
+    if currentLight then currentLight:Destroy() end
+    if workspace.CurrentCamera then workspace.CurrentCamera.FieldOfView = 70 end
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.WalkSpeed = 16 end
+    
+    if CrosshairCenter then CrosshairCenter:Destroy() end
+    ScreenGui:Destroy()
+end
+
+CreateButton(ConfigPage, "Unload Script", AccentColor, UnloadScript)
+
+-- ============================================================
+-- ГЛАВНЫЙ ЦИКЛ ОТРИСОВКИ (RenderStepped)
+-- ============================================================
+table.insert(connections, RunService.RenderStepped:Connect(function()
+    pcall(function()
+        if workspace.CurrentCamera then 
+            workspace.CurrentCamera.FieldOfView = FOVEnabled and currentFOV or 70 
+
+            -- ASPECT RATIO (STRETCHED)
+            if StretchEnabled then
+                local ratio = getStretchRatio()
+                if ratio ~= 1 then
+                    local camCF = workspace.CurrentCamera.CFrame
+                    if camCF.XVector.Magnitude > 0 and camCF.YVector.Magnitude > 0 then
+                        local cleanCF = CFrame.fromMatrix(camCF.Position, camCF.XVector.Unit, camCF.YVector.Unit, camCF.ZVector.Unit)
+                        workspace.CurrentCamera.CFrame = cleanCF * CFrame.new(0, 0, 0, 1, 0, 0, 0, ratio, 0, 0, 0, 1)
+                    end
+                end
+            end
+        end
+
+        -- CROSSHAIR UPDATE
+        if CrosshairCenter then
+            CrosshairCenter.Visible = CrosshairEnabled
+            if CrosshairEnabled then
+                local chColor = Color3.fromRGB(CrosshairR, CrosshairG, CrosshairB)
+                CrosshairH.Size = UDim2.new(0, CrosshairLength, 0, CrosshairWidth)
+                CrosshairH.BackgroundColor3 = chColor
+                CrosshairV.Size = UDim2.new(0, CrosshairWidth, 0, CrosshairLength)
+                CrosshairV.BackgroundColor3 = chColor
+            end
+        end
+
+        -- CUSTOM FOG UPDATE
+        if CustomFogEnabled then
+            Lighting.FogColor = Color3.fromRGB(FogR, FogG, FogB)
+            Lighting.FogStart = FogStartDist
+            Lighting.FogEnd = FogEndDist
+            for _, obj in ipairs(Lighting:GetChildren()) do
+                if obj:IsA("Atmosphere") then
+                    obj.Parent = nil
+                end
+            end
+        end
+
+        if LocalPlayer.Character then
+            local humanoid = LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+            if humanoid and SpeedhackEnabled then humanoid.WalkSpeed = SpeedhackValue end
+            
+            local rootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if FlashlightEnabled and rootPart then
+                if not currentLight or currentLight.Parent ~= rootPart then
+                    if currentLight then currentLight:Destroy() end
+                    currentLight = Instance.new("PointLight") currentLight.Shadows = false currentLight.Brightness = 1.2 currentLight.Parent = rootPart
+                end
+                currentLight.Color = Color3.fromRGB(FlashR, FlashG, FlashB) currentLight.Range = FlashRange
+            else if currentLight then currentLight:Destroy() currentLight = nil end end
+        end
+
+        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if myRoot then
+            local myPos = myRoot.Position
+            
+            -- Generator ESP
+            for i = #trackedGenerators, 1, -1 do
+                local gen = trackedGenerators[i]
+                if gen and gen.Parent then
+                    local highlight = gen:FindFirstChild("EssentialESP")
+                    local targetPart = gen:IsA("Model") and gen.PrimaryPart or gen:IsA("BasePart") and gen or gen:FindFirstChildWhichIsA("BasePart")
+                    if targetPart then
+                        local dist = (myPos - targetPart.Position).Magnitude
+                        if GeneratorESPEnabled and dist <= MAX_ESP_DISTANCE then
+                            if not highlight then
+                                highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = gen
+                            end
+                            highlight.FillColor = Color3.fromRGB(GeneratorR, GeneratorG, GeneratorB)
+                        else if highlight then highlight:Destroy() end end
+                    end
+                else table.remove(trackedGenerators, i) end
+            end
+
+            -- Pallet ESP
+            for i = #trackedPallets, 1, -1 do
+                local pallet = trackedPallets[i]
+                if pallet and pallet.Parent then
+                    local highlight = pallet:FindFirstChild("EssentialESP")
+                    local targetPart = pallet:IsA("Model") and pallet.PrimaryPart or pallet:IsA("BasePart") and pallet or pallet:FindFirstChildWhichIsA("BasePart")
+                    if targetPart then
+                        local dist = (myPos - targetPart.Position).Magnitude
+                        if PalletESPEnabled and dist <= MAX_ESP_DISTANCE then
+                            if not highlight then
+                                highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = pallet
+                            end
+                            highlight.FillColor = Color3.fromRGB(PalletR, PalletG, PalletB)
+                        else if highlight then highlight:Destroy() end end
+                    end
+                else table.remove(trackedPallets, i) end
+            end
+            
+            -- Hook ESP
+            for i = #trackedHooks, 1, -1 do
+                local hookObj = trackedHooks[i]
+                if hookObj and hookObj.Parent then
+                    local highlight = hookObj:FindFirstChild("EssentialESP")
+                    local targetPart = hookObj:IsA("Model") and hookObj.PrimaryPart or hookObj:IsA("BasePart") and hookObj or hookObj:FindFirstChildWhichIsA("BasePart")
+                    if targetPart then
+                        local dist = (myPos - targetPart.Position).Magnitude
+                        if HookESPEnabled and dist <= MAX_ESP_DISTANCE then
+                            if not highlight then
+                                highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = hookObj
+                            end
+                            highlight.FillColor = Color3.fromRGB(HookR, HookG, HookB)
+                        else if highlight then highlight:Destroy() end end
+                    end
+                else table.remove(trackedHooks, i) end
+            end
+        end
+
+        -- Player ESP
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local isManiac = isPlayerManiac(player)
+                local highlight = player.Character:FindFirstChild("EssentialESP")
+                local shouldHighlight = false local highlightColor = Color3.fromRGB(255, 255, 255)
+                if isManiac and ManiacESPEnabled then shouldHighlight = true highlightColor = Color3.fromRGB(ManiacR, ManiacG, ManiacB)
+                elseif not isManiac and SurvivorESPEnabled then shouldHighlight = true highlightColor = Color3.fromRGB(SurvivorR, SurvivorG, SurvivorB) end
+                if shouldHighlight then
+                    if not highlight then
+                        highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = player.Character
+                    end
+                    highlight.FillColor = highlightColor
+                else if highlight then highlight:Destroy() end end
+            end
+        end
+    end)
+end))
+
+print("[Essential Recode]: Script Loaded Successfully! (+Config Sharing System)")
