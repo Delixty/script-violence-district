@@ -1,5 +1,5 @@
-﻿-- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR
--- [UPDATED] Clean Config System + Smart Pallet ESP (No Boxes)
+-- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR
+-- [UPDATED] Clean Config System + Smart Pallet ESP (No Boxes) + Fixed Custom Skybox Save
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -848,9 +848,12 @@ local function ResetSkybox()
     _skyboxApplying = false
 end
 
+local _applyingPreset = false
+
 local function ApplyPreset(preset)
     CurrentPreset = preset
     if preset == "Default" then ResetSkybox() return end
+    if preset == "Custom" then ApplySkybox() return end
 
     local presets = {
         Day = { skyR = 120, skyG = 180, skyB = 255, horR = 220, horG = 235, horB = 255, bright = 60, exp = 50, clock = 14, starCount = 300, sunSize = 18, moonSize = 11, celestial = true },
@@ -861,6 +864,7 @@ local function ApplyPreset(preset)
     }
     local p = presets[preset]
     if p then
+        _applyingPreset = true
         SkyR = p.skyR SkyG = p.skyG SkyB = p.skyB HorR = p.horR HorG = p.horG HorB = p.horB SkyBrightness = p.bright SkyExposure = p.exp if p.clock then Lighting.ClockTime = p.clock end
         SkySettings.StarCount = p.starCount or 1000 SkySettings.SunAngularSize = p.sunSize or 11 SkySettings.MoonAngularSize = p.moonSize or 11 SkySettings.CelestialBodiesShown = p.celestial ~= false
 
@@ -872,8 +876,17 @@ local function ApplyPreset(preset)
         if UI_Elements.horRSlider then UI_Elements.horRSlider(HorR) end
         if UI_Elements.horGSlider then UI_Elements.horGSlider(HorG) end
         if UI_Elements.horBSlider then UI_Elements.horBSlider(HorB) end
+        _applyingPreset = false
     end
     ApplySkybox()
+end
+
+local function HandleSkySliderChange()
+    if not _applyingPreset and CurrentPreset ~= "Custom" then
+        _applyingPreset = true
+        if UI_Elements.presetDropdown then UI_Elements.presetDropdown("Custom") end
+        _applyingPreset = false
+    end
 end
 
 local function GuardLightingProp(prop, valueFn)
@@ -904,15 +917,15 @@ local function DisconnectSkyboxGuards()
 end
 
 UI_Elements.toggleSky = CreateToggle(skyboxDropdown, "Enable Skybox", false, function(state) SkyboxEnabled = state if state then ConnectSkyboxGuards() ApplyPreset(CurrentPreset) else DisconnectSkyboxGuards() ResetSkybox() end end)
-UI_Elements.skyBrightnessSlider = CreateSlider(skyboxDropdown, "Brightness", 0, 100, 50, function(v) SkyBrightness = v ApplySkybox() end)
-UI_Elements.skyExposureSlider = CreateSlider(skyboxDropdown, "Exposure", 0, 100, 50, function(v) SkyExposure = v ApplySkybox() end)
-UI_Elements.skyRSlider = CreateSlider(skyboxDropdown, "Sky Color Red (R)", 0, 255, 100, function(v) SkyR = v ApplySkybox() end)
-UI_Elements.skyGSlider = CreateSlider(skyboxDropdown, "Sky Color Green (G)", 0, 255, 160, function(v) SkyG = v ApplySkybox() end)
-UI_Elements.skyBSlider = CreateSlider(skyboxDropdown, "Sky Color Blue (B)", 0, 255, 255, function(v) SkyB = v ApplySkybox() end)
-UI_Elements.horRSlider = CreateSlider(skyboxDropdown, "Horizon Color Red (R)", 0, 255, 200, function(v) HorR = v ApplySkybox() end)
-UI_Elements.horGSlider = CreateSlider(skyboxDropdown, "Horizon Color Green (G)", 0, 255, 220, function(v) HorG = v ApplySkybox() end)
-UI_Elements.horBSlider = CreateSlider(skyboxDropdown, "Horizon Color Blue (B)", 0, 255, 255, function(v) HorB = v ApplySkybox() end)
-UI_Elements.presetDropdown = CreateDropdown(skyboxDropdown, "Skybox Preset", {"Default", "Day", "Sunset", "Night", "Space", "Purple"}, "Default", function(selected) ApplyPreset(selected) end)
+UI_Elements.skyBrightnessSlider = CreateSlider(skyboxDropdown, "Brightness", 0, 100, 50, function(v) SkyBrightness = v ApplySkybox() HandleSkySliderChange() end)
+UI_Elements.skyExposureSlider = CreateSlider(skyboxDropdown, "Exposure", 0, 100, 50, function(v) SkyExposure = v ApplySkybox() HandleSkySliderChange() end)
+UI_Elements.skyRSlider = CreateSlider(skyboxDropdown, "Sky Color Red (R)", 0, 255, 100, function(v) SkyR = v ApplySkybox() HandleSkySliderChange() end)
+UI_Elements.skyGSlider = CreateSlider(skyboxDropdown, "Sky Color Green (G)", 0, 255, 160, function(v) SkyG = v ApplySkybox() HandleSkySliderChange() end)
+UI_Elements.skyBSlider = CreateSlider(skyboxDropdown, "Sky Color Blue (B)", 0, 255, 255, function(v) SkyB = v ApplySkybox() HandleSkySliderChange() end)
+UI_Elements.horRSlider = CreateSlider(skyboxDropdown, "Horizon Color Red (R)", 0, 255, 200, function(v) HorR = v ApplySkybox() HandleSkySliderChange() end)
+UI_Elements.horGSlider = CreateSlider(skyboxDropdown, "Horizon Color Green (G)", 0, 255, 220, function(v) HorG = v ApplySkybox() HandleSkySliderChange() end)
+UI_Elements.horBSlider = CreateSlider(skyboxDropdown, "Horizon Color Blue (B)", 0, 255, 255, function(v) HorB = v ApplySkybox() HandleSkySliderChange() end)
+UI_Elements.presetDropdown = CreateDropdown(skyboxDropdown, "Skybox Preset", {"Default", "Day", "Sunset", "Night", "Space", "Purple", "Custom"}, "Default", function(selected) ApplyPreset(selected) end)
 
 local hudDropdown = CreateDropdownSection(VisualPage, "Essential HUD")
 local HUDEnabled, HUDFPS, HUDPing, HUDKiller = false, true, true, true
@@ -1110,8 +1123,6 @@ CreateButton(ConfigPage, "Load Config", BgElement, function()
                 
                 if UI_Elements.toggleSpeedSet then UI_Elements.toggleSpeedSet(data.Speedhack or false) end
                 if UI_Elements.sliderSpeedSet then UI_Elements.sliderSpeedSet(data.WalkSpeed or 32) end
-                if UI_Elements.toggleSpeedSet then UI_Elements.toggleSpeedSet(data.Speedhack or false) end
-                if UI_Elements.sliderSpeedSet then UI_Elements.sliderSpeedSet(data.WalkSpeed or 32) end
                 
                 if UI_Elements.toggleFlashlight then UI_Elements.toggleFlashlight(data.FlashOn or false) end
                 if UI_Elements.sliderFlashRange then UI_Elements.sliderFlashRange(data.FRange or 60) end
@@ -1146,8 +1157,10 @@ CreateButton(ConfigPage, "Load Config", BgElement, function()
 
                 if UI_Elements.toggleSky then UI_Elements.toggleSky(data.SkyOn or false) end
                 if data.SkyPreset and data.SkyPreset ~= "Custom" then 
-                    ApplyPreset(data.SkyPreset) 
+                    if UI_Elements.presetDropdown then UI_Elements.presetDropdown(data.SkyPreset) end
                 else
+                    if UI_Elements.presetDropdown then UI_Elements.presetDropdown("Custom") end
+                    _applyingPreset = true
                     if UI_Elements.skyBrightnessSlider then UI_Elements.skyBrightnessSlider(data.SkyBright or 50) end
                     if UI_Elements.skyExposureSlider then UI_Elements.skyExposureSlider(data.SkyExp or 50) end
                     if UI_Elements.skyRSlider then UI_Elements.skyRSlider(data.SkyR or 100) end
@@ -1156,7 +1169,9 @@ CreateButton(ConfigPage, "Load Config", BgElement, function()
                     if UI_Elements.horRSlider then UI_Elements.horRSlider(data.HorR or 200) end
                     if UI_Elements.horGSlider then UI_Elements.horGSlider(data.HorG or 220) end
                     if UI_Elements.horBSlider then UI_Elements.horBSlider(data.HorB or 255) end
+                    _applyingPreset = false
                 end
+
                 if UI_Elements.toggleEnableHUD then UI_Elements.toggleEnableHUD(data.HUDOn or false) end
                 if UI_Elements.toggleShowFPS then UI_Elements.toggleShowFPS(data.HUDFPS ~= false) end
                 if UI_Elements.toggleShowPing then UI_Elements.toggleShowPing(data.HUDPing ~= false) end
@@ -1383,4 +1398,4 @@ table.insert(connections, RunService.RenderStepped:Connect(function()
     end)
 end))
 
-print("[Essential Recode]: Script Loaded Successfully! (Smart Pallet ESP)")
+print("[Essential Recode]: Script Loaded Successfully! (Fixed Custom Skybox Saving)")
