@@ -1155,22 +1155,27 @@ CreateButton(ConfigPage, "Load Config", BgElement, function()
                 if UI_Elements.sliderCHG then UI_Elements.sliderCHG(data.CHG or 255) end
                 if UI_Elements.sliderCHB then UI_Elements.sliderCHB(data.CHB or 0) end
 
-                if UI_Elements.toggleSky then UI_Elements.toggleSky(data.SkyOn or false) end
-                if data.SkyPreset and data.SkyPreset ~= "Custom" then 
-                    if UI_Elements.presetDropdown then UI_Elements.presetDropdown(data.SkyPreset) end
-                else
-                    if UI_Elements.presetDropdown then UI_Elements.presetDropdown("Custom") end
-                    _applyingPreset = true
-                    if UI_Elements.skyBrightnessSlider then UI_Elements.skyBrightnessSlider(data.SkyBright or 50) end
-                    if UI_Elements.skyExposureSlider then UI_Elements.skyExposureSlider(data.SkyExp or 50) end
-                    if UI_Elements.skyRSlider then UI_Elements.skyRSlider(data.SkyR or 100) end
-                    if UI_Elements.skyGSlider then UI_Elements.skyGSlider(data.SkyG or 160) end
-                    if UI_Elements.skyBSlider then UI_Elements.skyBSlider(data.SkyB or 255) end
-                    if UI_Elements.horRSlider then UI_Elements.horRSlider(data.HorR or 200) end
-                    if UI_Elements.horGSlider then UI_Elements.horGSlider(data.HorG or 220) end
-                    if UI_Elements.horBSlider then UI_Elements.horBSlider(data.HorB or 255) end
-                    _applyingPreset = false
+                -- [FIX] НАЧАЛО ИСПРАВЛЕННОГО БЛОКА ЗАГРУЗКИ SKYBOX 
+                -- Устанавливаем пресет в UI (переключает стейт и обновляет текст)
+                if UI_Elements.presetDropdown then 
+                    UI_Elements.presetDropdown(data.SkyPreset or "Default") 
                 end
+
+                -- Жестко выставляем ползунки из конфига
+                _applyingPreset = true
+                if UI_Elements.skyBrightnessSlider then UI_Elements.skyBrightnessSlider(data.SkyBright or 50) end
+                if UI_Elements.skyExposureSlider then UI_Elements.skyExposureSlider(data.SkyExp or 50) end
+                if UI_Elements.skyRSlider then UI_Elements.skyRSlider(data.SkyR or 100) end
+                if UI_Elements.skyGSlider then UI_Elements.skyGSlider(data.SkyG or 160) end
+                if UI_Elements.skyBSlider then UI_Elements.skyBSlider(data.SkyB or 255) end
+                if UI_Elements.horRSlider then UI_Elements.horRSlider(data.HorR or 200) end
+                if UI_Elements.horGSlider then UI_Elements.horGSlider(data.HorG or 220) end
+                if UI_Elements.horBSlider then UI_Elements.horBSlider(data.HorB or 255) end
+                _applyingPreset = false
+
+                -- Теперь, когда UI полностью готов, включаем и применяем (если в конфиге было включено)
+                if UI_Elements.toggleSky then UI_Elements.toggleSky(data.SkyOn or false) end
+                -- [FIX] КОНЕЦ ИСПРАВЛЕННОГО БЛОКА
 
                 if UI_Elements.toggleEnableHUD then UI_Elements.toggleEnableHUD(data.HUDOn or false) end
                 if UI_Elements.toggleShowFPS then UI_Elements.toggleShowFPS(data.HUDFPS ~= false) end
