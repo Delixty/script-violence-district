@@ -1,5 +1,5 @@
 -- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR
--- [UPDATED] Clean Config System + Smart Pallet ESP (No Boxes) + Fixed Custom Skybox Save
+-- [UPDATED] Clean Config System + Smart Pallet ESP (No Boxes) + Fixed Custom Skybox Save + Rage/Legit Animations
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -44,6 +44,7 @@ local HookR, HookG, HookB = 255, 0, 0
 local FOVEnabled = false
 local currentFOV = 70
 local SpeedhackEnabled = false
+local SpeedhackMode = "Legit" -- Добавлен дефолтный режим
 local SpeedhackValue = 32
 
 local FlashlightEnabled = false
@@ -1012,8 +1013,12 @@ UI_Elements.sliderCHB = CreateSlider(crosshairDropdown, "Color: Blue (B)", 0, 25
 
 UI_Elements.toggleFOVSet = CreateToggle(MiscPage, "Enable FOV Changer", false, function(state) FOVEnabled = state end)
 UI_Elements.sliderSet = CreateSlider(MiscPage, "FOV Changer Value", 70, 120, 70, function(val) currentFOV = val end)
-UI_Elements.toggleSpeedSet = CreateToggle(MiscPage, "Enable Speedhack", false, function(state) SpeedhackEnabled = state end)
-UI_Elements.sliderSpeedSet = CreateSlider(MiscPage, "WalkSpeed Value", 16, 150, 32, function(val) SpeedhackValue = val end)
+
+-- SPEEDHACK ДОБАВЛЕН В ГАРМОШКУ С ВЫБОРОМ РЕЖИМА
+local speedhackDropdown = CreateDropdownSection(MiscPage, "Speedhack")
+UI_Elements.toggleSpeedSet = CreateToggle(speedhackDropdown, "Enable Speedhack", false, function(state) SpeedhackEnabled = state end)
+UI_Elements.dropdownSpeedMode = CreateDropdown(speedhackDropdown, "Mode", {"Legit", "Rage"}, "Legit", function(val) SpeedhackMode = val end)
+UI_Elements.sliderSpeedSet = CreateSlider(speedhackDropdown, "WalkSpeed Value", 16, 150, 32, function(val) SpeedhackValue = val end)
 
 -- NOCLIP
 local function RestoreNoclipCollisions()
@@ -1078,7 +1083,8 @@ local data = {
         SurvESP = SurvivorESPEnabled, SR = SurvivorR, SG = SurvivorG, SB = SurvivorB,
         GenESP = GeneratorESPEnabled, GR = GeneratorR, GG = GeneratorG, GB = GeneratorB,
         PalletESP = PalletESPEnabled, PR = PalletR, PG = PalletG, PB = PalletB,
-        FOVOn = FOVEnabled, FOV = currentFOV, Speedhack = SpeedhackEnabled, WalkSpeed = SpeedhackValue,
+        FOVOn = FOVEnabled, FOV = currentFOV, 
+        Speedhack = SpeedhackEnabled, SpeedMode = SpeedhackMode, WalkSpeed = SpeedhackValue,
         FlashOn = FlashlightEnabled, FRange = FlashRange, FR = FlashR, FG = FlashG, FB = FlashB,
         HookESP = HookESPEnabled, HR = HookR, HG = HookG, HB = HookB,
         Noclip = NoclipEnabled, SkyOn = SkyboxEnabled, SkyPreset = CurrentPreset,
@@ -1122,6 +1128,7 @@ CreateButton(ConfigPage, "Load Config", BgElement, function()
                 if UI_Elements.sliderSet then UI_Elements.sliderSet(data.FOV or 70) end
                 
                 if UI_Elements.toggleSpeedSet then UI_Elements.toggleSpeedSet(data.Speedhack or false) end
+                if UI_Elements.dropdownSpeedMode then UI_Elements.dropdownSpeedMode(data.SpeedMode or "Legit") end
                 if UI_Elements.sliderSpeedSet then UI_Elements.sliderSpeedSet(data.WalkSpeed or 32) end
                 
                 if UI_Elements.toggleFlashlight then UI_Elements.toggleFlashlight(data.FlashOn or false) end
@@ -1155,13 +1162,10 @@ CreateButton(ConfigPage, "Load Config", BgElement, function()
                 if UI_Elements.sliderCHG then UI_Elements.sliderCHG(data.CHG or 255) end
                 if UI_Elements.sliderCHB then UI_Elements.sliderCHB(data.CHB or 0) end
 
-                -- [FIX] НАЧАЛО ИСПРАВЛЕННОГО БЛОКА ЗАГРУЗКИ SKYBOX 
-                -- Устанавливаем пресет в UI (переключает стейт и обновляет текст)
                 if UI_Elements.presetDropdown then 
                     UI_Elements.presetDropdown(data.SkyPreset or "Default") 
                 end
 
-                -- Жестко выставляем ползунки из конфига
                 _applyingPreset = true
                 if UI_Elements.skyBrightnessSlider then UI_Elements.skyBrightnessSlider(data.SkyBright or 50) end
                 if UI_Elements.skyExposureSlider then UI_Elements.skyExposureSlider(data.SkyExp or 50) end
@@ -1173,10 +1177,7 @@ CreateButton(ConfigPage, "Load Config", BgElement, function()
                 if UI_Elements.horBSlider then UI_Elements.horBSlider(data.HorB or 255) end
                 _applyingPreset = false
 
-                -- Теперь, когда UI полностью готов, включаем и применяем (если в конфиге было включено)
                 if UI_Elements.toggleSky then UI_Elements.toggleSky(data.SkyOn or false) end
-                -- [FIX] КОНЕЦ ИСПРАВЛЕННОГО БЛОКА
-
                 if UI_Elements.toggleEnableHUD then UI_Elements.toggleEnableHUD(data.HUDOn or false) end
                 if UI_Elements.toggleShowFPS then UI_Elements.toggleShowFPS(data.HUDFPS ~= false) end
                 if UI_Elements.toggleShowPing then UI_Elements.toggleShowPing(data.HUDPing ~= false) end
@@ -1316,17 +1317,27 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
             local rootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             
             if humanoid and rootPart and SpeedhackEnabled then
-                -- Получаем текущую скорость, заданную игрой
                 local currentSpeed = humanoid.WalkSpeed
+                local moveDir = humanoid.MoveDirection
                 
-                -- Если скорость ниже 14, скорее всего персонаж в приседе (Crouch)
-                if currentSpeed >= 14 then
-                    local moveDir = humanoid.MoveDirection
-                    if moveDir.Magnitude > 0 then
+                if SpeedhackMode == "Rage" then
+                    -- Установка WalkSpeed триггерит анимацию бега в движке Roblox
+                    humanoid.WalkSpeed = SpeedhackValue
+                    
+                    -- Если игра пытается нас замедлить (например, мы лежим или сидим),
+                    -- компенсируем разницу через CFrame, чтобы скорость всегда была максимальной.
+                    if moveDir.Magnitude > 0 and currentSpeed < SpeedhackValue then
                         local extraSpeed = SpeedhackValue - currentSpeed
                         if extraSpeed > 0 then
-                            -- Сдвигаем CFrame вместо жесткой перезаписи WalkSpeed
-                            -- Так мы не ломаем стейты ходьбы и бега
+                            rootPart.CFrame = rootPart.CFrame + (moveDir * (extraSpeed * delta))
+                        end
+                    end
+                elseif SpeedhackMode == "Legit" then
+                    -- В Legit мы не трогаем WalkSpeed, чтобы не ломать анимации ходьбы.
+                    -- Ускоряем через CFrame ТОЛЬКО при беге (Shift) и когда персонаж стоит на ногах (>= 14).
+                    if moveDir.Magnitude > 0 and currentSpeed >= 14 and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)) then
+                        local extraSpeed = SpeedhackValue - currentSpeed
+                        if extraSpeed > 0 then
                             rootPart.CFrame = rootPart.CFrame + (moveDir * (extraSpeed * delta))
                         end
                     end
