@@ -1269,7 +1269,7 @@ CreateButton(ConfigPage, "Unload Script", AccentColor, UnloadScript)
 -- ============================================================
 -- ГЛАВНЫЙ ЦИКЛ ОТРИСОВКИ (RenderStepped)
 -- ============================================================
-table.insert(connections, RunService.RenderStepped:Connect(function()
+table.insert(connections, RunService.RenderStepped:Connect(function(delta)
     pcall(function()
         if workspace.CurrentCamera then 
             workspace.CurrentCamera.FieldOfView = FOVEnabled and currentFOV or 70 
@@ -1313,9 +1313,26 @@ table.insert(connections, RunService.RenderStepped:Connect(function()
 
         if LocalPlayer.Character then
             local humanoid = LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
-            if humanoid and SpeedhackEnabled then humanoid.WalkSpeed = SpeedhackValue end
-            
             local rootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            
+            if humanoid and rootPart and SpeedhackEnabled then
+                -- Получаем текущую скорость, заданную игрой
+                local currentSpeed = humanoid.WalkSpeed
+                
+                -- Если скорость ниже 14, скорее всего персонаж в приседе (Crouch)
+                if currentSpeed >= 14 then
+                    local moveDir = humanoid.MoveDirection
+                    if moveDir.Magnitude > 0 then
+                        local extraSpeed = SpeedhackValue - currentSpeed
+                        if extraSpeed > 0 then
+                            -- Сдвигаем CFrame вместо жесткой перезаписи WalkSpeed
+                            -- Так мы не ломаем стейты ходьбы и бега
+                            rootPart.CFrame = rootPart.CFrame + (moveDir * (extraSpeed * delta))
+                        end
+                    end
+                end
+            end
+            
             if FlashlightEnabled and rootPart then
                 if not currentLight or currentLight.Parent ~= rootPart then
                     if currentLight then currentLight:Destroy() end
