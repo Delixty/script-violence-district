@@ -179,7 +179,7 @@ local function ToggleMenu()
     MainUIScale.Scale = targetScale
 
     if isMenuOpen then
-        Title.TextXAlignment = Enum.TextXAlignment.Left Title.Position = UDim2.new(0, 13, 0, 0) Title.Size = UDim2.new(1, -50, 1, 0)
+        Title.TextXAlignment = Enum.TextXAlignment.Left Title.Position = UDim2.new(0, 15, 0, 0) Title.Size = UDim2.new(1, -50, 1, 0)
         GearBtn.Visible = true MainFrame.Visible = true Body.Visible = true HeaderBottom.Visible = true
         TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { Size = UDim2.new(0, 560, 0, 420), Position = UDim2.new(0.5, 0, 0.5, 210 * targetScale) }):Play()
     else
@@ -416,7 +416,7 @@ end
 -- ==============================================
 -- СТРАНИЦА НАСТРОЕК UI (Оверлей)
 -- ==============================================
-CreateLabel(SettingsOverlay, "UI CUSTOMIZATION")
+CreateLabel(SettingsOverlay, "UI customization")
 UI_Elements.dropdownDeviceMode = CreateDropdown(SettingsOverlay, "Device Mode", {"PC", "Phone"}, Settings.DeviceMode, function(val)
     Settings.DeviceMode = val
     local scale = (val == "Phone") and 0.85 or 1.0
