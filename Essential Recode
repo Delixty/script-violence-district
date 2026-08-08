@@ -414,10 +414,16 @@ UI_Elements.sliderHookR = CreateSlider(hookDropdown, "Color: Red (R)", 0, 255, 2
 UI_Elements.sliderHookG = CreateSlider(hookDropdown, "Color: Green (G)", 0, 255, 0, function(val) Settings.HookG = val end)
 UI_Elements.sliderHookB = CreateSlider(hookDropdown, "Color: Blue (B)", 0, 255, 0, function(val) Settings.HookB = val end)
 local gateDropdown = CreateDropdownSection(MainPage, "Gate ESP")
-UI_Elements.toggleGate = CreateToggle(gateDropdown, "Enable Gate ESP", false, function(state) Settings.GateESP = state end)
-UI_Elements.sliderGateR = CreateSlider(gateDropdown, "Color: Red (R)", 0, 255, 0, function(val) Settings.GateR = val end)
-UI_Elements.sliderGateG = CreateSlider(gateDropdown, "Color: Green (G)", 0, 255, 255, function(val) Settings.GateG = val end)
-UI_Elements.sliderGateB = CreateSlider(gateDropdown, "Color: Blue (B)", 0, 255, 255, function(val) Settings.GateB = val end)
+
+-- Заглушка красным текстом
+local gateDisabledLabel = Instance.new("TextLabel", gateDropdown)
+gateDisabledLabel.Size = UDim2.new(1, 0, 0, 42)
+gateDisabledLabel.BackgroundTransparency = 1
+gateDisabledLabel.Text = "Функция временно отключена"
+gateDisabledLabel.TextColor3 = Color3.fromRGB(255, 75, 75) -- Красный цвет
+gateDisabledLabel.Font = Enum.Font.GothamBold
+gateDisabledLabel.TextSize = 13
+
 local flashDropdown = CreateDropdownSection(VisualPage, "Custom Flashlight")
 UI_Elements.toggleFlashlight = CreateToggle(flashDropdown, "Enable Flashlight", false, function(state) Settings.Flashlight = state end)
 UI_Elements.sliderFlashRange = CreateSlider(flashDropdown, "Flashlight Range", 10, 150, 60, function(val) Settings.FlashRange = val end)
@@ -590,7 +596,22 @@ UI_Elements.toggleShowKiller = CreateToggle(hudDropdown, "Show Killer Info", tru
 -- [НОВОЕ] STAFF TAGS ПОМЕЩЕНЫ ВНИЗ СТРАНИЦЫ VISUAL
 UI_Elements.toggleStaffTags = CreateToggle(VisualPage, "Enable Staff Tags", false, function(state) Settings.StaffTags = state end)
 -- [НОВОЕ] NO STOP EMOTE (БЕЗОПАСНАЯ ВЕРСИЯ, БЕЗ ХУКОВ)
-UI_Elements.toggleNoStopEmote = CreateToggle(VisualPage, "No Stop Emote", false, function(state) Settings.NoStopEmote = state end)
+-- UI_Elements.toggleNoStopEmote = CreateToggle(VisualPage, "No Stop Emote", false, function(state) Settings.NoStopEmote = state end)
+
+local noStopEmoteDisabledFrame = Instance.new("Frame", VisualPage)
+noStopEmoteDisabledFrame.Size = UDim2.new(1, 0, 0, 42)
+noStopEmoteDisabledFrame.BackgroundColor3 = BgElement
+Instance.new("UICorner", noStopEmoteDisabledFrame).CornerRadius = UDim.new(0, 8)
+local nseStroke = Instance.new("UIStroke", noStopEmoteDisabledFrame)
+table.insert(ThemeElements.DarkStrokes, nseStroke)
+
+local noStopEmoteDisabledLabel = Instance.new("TextLabel", noStopEmoteDisabledFrame)
+noStopEmoteDisabledLabel.Size = UDim2.new(1, 0, 1, 0)
+noStopEmoteDisabledLabel.BackgroundTransparency = 1
+noStopEmoteDisabledLabel.Text = "No Stop Emote: временно отключена"
+noStopEmoteDisabledLabel.TextColor3 = Color3.fromRGB(255, 75, 75) -- Красный цвет
+noStopEmoteDisabledLabel.Font = Enum.Font.GothamBold
+noStopEmoteDisabledLabel.TextSize = 13
 local aspectDropdown = CreateDropdownSection(MiscPage, "Aspect Ratio (Stretched)")
 UI_Elements.toggleStretch = CreateToggle(aspectDropdown, "Enable Stretch", false, function(state) Settings.Stretch = state end)
 UI_Elements.dropdownStretch = CreateDropdown(aspectDropdown, "Resolution", {"16:9 (Default)", "16:10", "4:3", "5:4", "3:4", "Custom"}, "16:9 (Default)", function(val) Settings.StretchPreset = val end)
