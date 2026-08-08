@@ -1,5 +1,5 @@
--- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR + GATE ESP
--- [UPDATED] Smart Touch Toggle, PC/Phone Mode, Theme Fixes, Smart Jumphack
+-- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR + GATE ESP + NAME ESP + STAFF TAGS
+-- [UPDATED] Touch Patch, Legit Speed Force-Fix, Match Check, Global Gate ESP, Gen Fixes, Staff Tags, Safe No Stop Emote
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -42,9 +42,18 @@ local Settings = {
     SkyEnabled = false, SkyBright = 50, SkyExp = 50, SkyR = 100, SkyG = 160, SkyB = 255,
     HorR = 200, HorG = 220, HorB = 255, SkyPreset = "Default",
     HUDEnabled = false, HUDFPS = true, HUDPing = true, HUDKiller = true,
+    StaffTags = false,
+    NoStopEmote = false,
 
-    -- UI Settings (PC/Phone Mode + Accent)
+    -- UI Settings
     DeviceMode = "PC", AccentR = 168, AccentG = 85, AccentB = 247
+}
+
+-- СПИСОК РОЛЕЙ (STAFF TAGS)
+local StaffList = {
+    ["MilkDark1999"] = "Dev",
+    ["TimmyMartyn"] = "Tester",
+    ["xbsjbjdb"] = "Tester"
 }
 
 local function ApplyTheme()
@@ -103,14 +112,14 @@ local trackedHooks = {}
 local trackedGates = {}
 local MAX_ESP_DISTANCE = 100
 
--- Цвета UI (Глубокий тёмный)
-local BgMain = Color3.fromRGB(10, 10, 10)       -- Главный фон (почти черный)
-local BgHeader = Color3.fromRGB(16, 16, 16)     -- Шапка 
-local BgSidebar = Color3.fromRGB(14, 14, 14)    -- Полоска с вкладками
-local BgElement = Color3.fromRGB(20, 20, 20)    -- Фон элементов (плашки настроек)
-local BgDark = Color3.fromRGB(4, 4, 4)          -- Самый темный фон (поиск, ползунки, списки)
-local TextColor = Color3.fromRGB(245, 245, 245) -- Яркий белый текст
-local TextMuted = Color3.fromRGB(130, 130, 130) -- Приглушенный текст
+-- Цвета UI
+local BgMain = Color3.fromRGB(10, 10, 10)
+local BgHeader = Color3.fromRGB(16, 16, 16)
+local BgSidebar = Color3.fromRGB(14, 14, 14)
+local BgElement = Color3.fromRGB(20, 20, 20)
+local BgDark = Color3.fromRGB(4, 4, 4)
+local TextColor = Color3.fromRGB(245, 245, 245)
+local TextMuted = Color3.fromRGB(130, 130, 130)
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "EssentialUI"
@@ -147,7 +156,6 @@ table.insert(ThemeElements.DarkStrokes, HeaderBottomStroke)
 local GearBtn = Instance.new("ImageButton", Header)
 GearBtn.Size = UDim2.new(0, 20, 0, 20) GearBtn.Position = UDim2.new(1, -30, 0.5, -10) GearBtn.BackgroundTransparency = 1 GearBtn.Image = "rbxassetid://7059346373" GearBtn.ImageColor3 = Color3.fromRGB(255, 255, 255) GearBtn.Visible = false GearBtn.ZIndex = 5
 
--- Сделано TextLabel чтобы не блокировать касания
 local Title = Instance.new("TextLabel", Header) 
 Title.Size = UDim2.new(1, 0, 1, 0) Title.Position = UDim2.new(0, 0, 0, 0) Title.BackgroundTransparency = 1 Title.Text = "Essential Recode" Title.TextColor3 = Color3.fromRGB(255, 255, 255) Title.TextSize = 15 Title.Font = Enum.Font.GothamBold Title.TextXAlignment = Enum.TextXAlignment.Center 
 local TitleGrad = Instance.new("UIGradient", Title) table.insert(ThemeElements.Gradients, TitleGrad)
@@ -171,7 +179,6 @@ GearBtn.MouseButton1Click:Connect(function()
     Topbar.Visible = not SettingsOverlay.Visible
 end)
 
--- ИСПРАВЛЕННАЯ ЛОГИКА КАДРОВ ТАПА И ПЕРЕТАСКИВАНИЯ
 local isMenuOpen = false
 local function ToggleMenu()
     isMenuOpen = not isMenuOpen
@@ -197,26 +204,18 @@ Header.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragStartPos = input.Position
         touchStartTime = os.clock()
-        if Body.Visible then
-            dragging = true
-            dragStartFramePos = MainFrame.Position
-        end
+        if Body.Visible then dragging = true dragStartFramePos = MainFrame.Position end
     end
 end)
 
 Header.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
 end)
 
 Header.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = false
-        -- Если нажатие длилось меньше 0.3 сек и палец/курсор сдвинулся менее чем на 15 пикселей -> Это ТАП (Сворачиваем)
-        if dragStartPos and (input.Position - dragStartPos).Magnitude < 15 and (os.clock() - touchStartTime) < 0.3 then
-            ToggleMenu()
-        end
+        if dragStartPos and (input.Position - dragStartPos).Magnitude < 15 and (os.clock() - touchStartTime) < 0.3 then ToggleMenu() end
     end
 end)
 
@@ -353,7 +352,7 @@ if isAccent then
         btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255) 
         local grad = Instance.new("UIGradient", btn) table.insert(ThemeElements.Gradients, grad) 
     else
-        btn.BackgroundColor3 = BgElement -- Вернули стандартный фон
+        btn.BackgroundColor3 = BgElement
     end
     if ShouldBeSearchable(parent) then table.insert(SearchableElements, {frame = btn, text = string.lower(text)}) end
     btn.MouseButton1Click:Connect(callback) return btn
@@ -664,6 +663,12 @@ UI_Elements.toggleShowFPS = CreateToggle(hudDropdown, "Show FPS", true, function
 UI_Elements.toggleShowPing = CreateToggle(hudDropdown, "Show Ping", true, function(state) Settings.HUDPing = state RefreshHUDVisibility() end)
 UI_Elements.toggleShowKiller = CreateToggle(hudDropdown, "Show Killer Info", true, function(state) Settings.HUDKiller = state RefreshHUDVisibility() end)
 
+-- [НОВОЕ] STAFF TAGS ПОМЕЩЕНЫ ВНИЗ СТРАНИЦЫ VISUAL
+UI_Elements.toggleStaffTags = CreateToggle(VisualPage, "Enable Staff Tags", false, function(state) Settings.StaffTags = state end)
+
+-- [НОВОЕ] NO STOP EMOTE (БЕЗОПАСНАЯ ВЕРСИЯ, БЕЗ ХУКОВ)
+UI_Elements.toggleNoStopEmote = CreateToggle(VisualPage, "No Stop Emote", false, function(state) Settings.NoStopEmote = state end)
+
 local aspectDropdown = CreateDropdownSection(MiscPage, "Aspect Ratio (Stretched)")
 UI_Elements.toggleStretch = CreateToggle(aspectDropdown, "Enable Stretch", false, function(state) Settings.Stretch = state end)
 UI_Elements.dropdownStretch = CreateDropdown(aspectDropdown, "Resolution", {"16:9 (Default)", "16:10", "4:3", "5:4", "3:4", "Custom"}, "16:9 (Default)", function(val) Settings.StretchPreset = val end)
@@ -726,10 +731,9 @@ local function RefreshConfigList()
     local files = GetConfigs()
     for _, cfgName in ipairs(files) do
         local btn = CreateButton(ConfigListSection, cfgName, false, function() SetConfigNameText(cfgName) StatusLabel("Status: Selected '" .. cfgName .. "'") end) 
-        btn.BackgroundColor3 = BgDark -- ВОТ ЭТА СТРОЧКА ВЕРНЕТ ИМ НУЖНЫЙ ФОН
+        btn.BackgroundColor3 = BgDark
         btn.Name = "CfgFileBtn"
     end
-    -- Принудительно красим свежедобавленные элементы
     ApplyTheme()
 end
 
@@ -772,6 +776,10 @@ CreateButton(ConfigPage, "Load Config", false, function()
                 if UI_Elements.sliderGateR then UI_Elements.sliderGateR(data.GateR or 0) end
                 if UI_Elements.sliderGateG then UI_Elements.sliderGateG(data.GateG or 255) end
                 if UI_Elements.sliderGateB then UI_Elements.sliderGateB(data.GateB or 255) end
+                
+                if UI_Elements.toggleStaffTags then UI_Elements.toggleStaffTags(data.StaffTags or false) end
+                if UI_Elements.toggleNoStopEmote then UI_Elements.toggleNoStopEmote(data.NoStopEmote or false) end
+
                 if UI_Elements.toggleFOVSet then UI_Elements.toggleFOVSet(data.FOVEnabled or false) end
                 if UI_Elements.sliderSet then UI_Elements.sliderSet(data.FOV or 70) end
                 
@@ -820,7 +828,6 @@ CreateButton(ConfigPage, "Load Config", false, function()
                 if UI_Elements.toggleShowPing then UI_Elements.toggleShowPing(data.HUDPing ~= false) end
                 if UI_Elements.toggleShowKiller then UI_Elements.toggleShowKiller(data.HUDKiller ~= false) end
                 
-                -- Загружаем настройки кастомизации UI
                 if UI_Elements.sliderAccR then UI_Elements.sliderAccR(data.AccentR or 168) end
                 if UI_Elements.sliderAccG then UI_Elements.sliderAccG(data.AccentG or 85) end
                 if UI_Elements.sliderAccB then UI_Elements.sliderAccB(data.AccentB or 247) end
@@ -843,6 +850,7 @@ RefreshConfigList()
 local sep = Instance.new("Frame", ConfigPage) sep.Size = UDim2.new(1, 0, 0, 1) sep.BorderSizePixel = 0
 table.insert(ThemeElements.DarkStrokes, sep)
 
+-- ФУНКЦИЯ ДЛЯ ПОИСКА ОБЪЕКТОВ
 local function CheckObject(obj)
     if not obj or not obj.Parent then return end
     local name = string.lower(obj.Name)
@@ -850,9 +858,9 @@ local function CheckObject(obj)
         if not table.find(trackedGenerators, obj) then table.insert(trackedGenerators, obj) end
     elseif string.match(name, "pallet") then 
         if obj:IsA("Model") or obj:IsA("BasePart") then if not table.find(trackedPallets, obj) then table.insert(trackedPallets, obj) end end
-    elseif string.match(name, "hook") then 
+    elseif string.match(name, "hook") or string.match(name, "sacrifice") or string.match(name, "hang") or string.match(name, "meat") or string.match(name, "scourge") then 
         if not table.find(trackedHooks, obj) then table.insert(trackedHooks, obj) end
-    elseif string.match(name, "gate") or string.match(name, "exit") then
+    elseif string.match(name, "gate") or string.match(name, "exit") or string.match(name, "switch") or string.match(name, "lever") then
         if not table.find(trackedGates, obj) then table.insert(trackedGates, obj) end
     end
 end
@@ -869,8 +877,20 @@ local function UnloadScript()
     RestoreNoclipCollisions() DisconnectSkyboxGuards() ResetSkybox() TerminateEssentialHUD()
     Lighting.FogStart = DefaultLighting.FogStart Lighting.FogEnd = DefaultLighting.FogEnd
     if not Settings.SkyEnabled then Lighting.FogColor = DefaultLighting.FogColor end
-    for _, p in pairs(Players:GetPlayers()) do if p.Character and p.Character:FindFirstChild("EssentialESP") then p.Character.EssentialESP:Destroy() end end
-    for _, gen in ipairs(trackedGenerators) do if gen and gen.Parent and gen:FindFirstChild("EssentialESP") then gen.EssentialESP:Destroy() end end
+    
+    for _, p in pairs(Players:GetPlayers()) do 
+        if p.Character then 
+            if p.Character:FindFirstChild("EssentialESP") then p.Character.EssentialESP:Destroy() end 
+            if p.Character:FindFirstChild("EssentialNameTag") then p.Character.EssentialNameTag:Destroy() end
+        end 
+    end
+    
+    for _, gen in ipairs(trackedGenerators) do 
+        if gen and gen.Parent then 
+            if gen:FindFirstChild("EssentialESP") then gen.EssentialESP:Destroy() end 
+            if gen:FindFirstChild("EssentialGenTag") then gen.EssentialGenTag:Destroy() end 
+        end 
+    end
     for _, pallet in ipairs(trackedPallets) do if pallet and pallet.Parent and pallet:FindFirstChild("EssentialESP") then pallet.EssentialESP:Destroy() end end
     for _, hookObj in ipairs(trackedHooks) do if hookObj and hookObj.Parent and hookObj:FindFirstChild("EssentialESP") then hookObj.EssentialESP:Destroy() end end
     for _, gate in ipairs(trackedGates) do if gate and gate.Parent and gate:FindFirstChild("EssentialESP") then gate.EssentialESP:Destroy() end end
@@ -882,9 +902,12 @@ local function UnloadScript()
 end
 CreateButton(ConfigPage, "Unload Script", true, UnloadScript)
 
--- Применяем начальную тему после прогрузки всего UI
 ApplyTheme()
 
+local wasLegitOverriding = false
+local lastLegitSpeedValue = 0
+
+-- ГЛАВНЫЙ ЦИКЛ СКРИПТА
 table.insert(connections, RunService.RenderStepped:Connect(function(delta)
     pcall(function()
         if workspace.CurrentCamera then 
@@ -912,29 +935,45 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
             Lighting.FogColor = Color3.fromRGB(Settings.FogR, Settings.FogG, Settings.FogB) Lighting.FogStart = Settings.FogStart Lighting.FogEnd = Settings.FogEnd
             for _, obj in ipairs(Lighting:GetChildren()) do if obj:IsA("Atmosphere") then obj.Parent = nil end end
         end
+
         if LocalPlayer.Character then
             local humanoid = LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
             if humanoid then
                 local currentIntentSpeed = humanoid.WalkSpeed
-                local isCrouching = currentIntentSpeed > 0 and currentIntentSpeed <= 10
-                local isWalking = currentIntentSpeed > 10 and currentIntentSpeed <= 18
-                local isRunning = currentIntentSpeed > 18
+                local isOverridden = (Settings.Speedhack and Settings.SpeedMode == "Rage") or wasLegitOverriding
+                local isCrouching = false
+                if not isOverridden then isCrouching = currentIntentSpeed > 0 and currentIntentSpeed <= 10 end
+                local isDead = humanoid.Health <= 0
+                local shiftHeld = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+                local isMoving = humanoid.MoveDirection.Magnitude > 0
+
                 if Settings.Speedhack then
                     Settings.wasSpeedhack = true
                     if Settings.SpeedMode == "Rage" then
                         humanoid.WalkSpeed = Settings.SpeedValue
+                        wasLegitOverriding = false
                     elseif Settings.SpeedMode == "Legit" then
-                        if isRunning and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)) then
-                             humanoid.WalkSpeed = Settings.SpeedValue 
+                        if shiftHeld and isMoving and not isDead and not isCrouching then
+                            if humanoid.WalkSpeed ~= Settings.SpeedValue then
+                                humanoid.WalkSpeed = Settings.SpeedValue
+                            end
+                            wasLegitOverriding = true
+                        else
+                            if wasLegitOverriding then
+                                wasLegitOverriding = false
+                                if not isDead and not isCrouching then humanoid.WalkSpeed = 16 end
+                            end
                         end
                     end
                 else
                     if Settings.wasSpeedhack then
-                        if isRunning then humanoid.WalkSpeed = 22 elseif isWalking then humanoid.WalkSpeed = 16 end
+                        wasLegitOverriding = false
+                        if currentIntentSpeed > 18 then humanoid.WalkSpeed = 22 elseif currentIntentSpeed > 10 then humanoid.WalkSpeed = 16 end
                         Settings.wasSpeedhack = false
                     end
                 end
             end
+            
             local rootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             if Settings.Flashlight and rootPart then
                 if not currentLight or currentLight.Parent ~= rootPart then
@@ -945,25 +984,73 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
             else if currentLight then currentLight:Destroy() currentLight = nil end end
         end
 
+        -- ESP ОБЪЕКТОВ
         local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if myRoot then
             local myPos = myRoot.Position
+            
+            -- ГЕНЕРАТОРЫ
             for i = #trackedGenerators, 1, -1 do
                 local gen = trackedGenerators[i]
                 if gen and gen.Parent then
                     local highlight = gen:FindFirstChild("EssentialESP")
+                    local textTag = gen:FindFirstChild("EssentialGenTag")
                     local targetPart = gen:IsA("Model") and gen.PrimaryPart or gen:IsA("BasePart") and gen or gen:FindFirstChildWhichIsA("BasePart")
+                    
                     if targetPart then
                         local dist = (myPos - targetPart.Position).Magnitude
-                        if Settings.GeneratorESP and dist <= MAX_ESP_DISTANCE then
+                        
+                        local isCompleted = false
+                        local progVal = gen:GetAttribute("Progress") or gen:GetAttribute("Charge")
+                        if not progVal then
+                            local valObj = gen:FindFirstChild("Progress") or gen:FindFirstChild("Charge") or gen:FindFirstChild("Value")
+                            if valObj and (valObj:IsA("NumberValue") or valObj:IsA("IntValue")) then progVal = valObj.Value end
+                        end
+                        if type(progVal) == "number" then
+                            if (progVal <= 1 and progVal >= 1) or (progVal > 1 and progVal >= 100) then isCompleted = true end
+                        end
+                        if gen:GetAttribute("Completed") == true or gen:GetAttribute("Done") == true or gen:GetAttribute("Finished") == true then
+                            isCompleted = true
+                        end
+                        
+                        if Settings.GeneratorESP and dist <= MAX_ESP_DISTANCE and not isCompleted then
                             if not highlight then
                                 highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = gen
                             end
                             highlight.FillColor = Color3.fromRGB(Settings.GeneratorR, Settings.GeneratorG, Settings.GeneratorB)
-                        else if highlight then highlight:Destroy() end end
+                            
+                            if not textTag then
+                                textTag = Instance.new("BillboardGui")
+                                textTag.Name = "EssentialGenTag"
+                                textTag.Size = UDim2.new(0, 200, 0, 50)
+                                textTag.StudsOffset = Vector3.new(0, 2, 0)
+                                textTag.AlwaysOnTop = true
+                                
+                                local tl = Instance.new("TextLabel")
+                                tl.Name = "Text"
+                                tl.Size = UDim2.new(1, 0, 1, 0)
+                                tl.BackgroundTransparency = 1
+                                tl.Font = Enum.Font.GothamBold
+                                tl.TextSize = 13
+                                tl.TextStrokeTransparency = 0.2
+                                tl.TextStrokeColor3 = Color3.new(0, 0, 0)
+                                tl.Parent = textTag
+                                
+                                textTag.Adornee = targetPart
+                                textTag.Parent = gen
+                            end
+                            
+                            textTag.Text.Text = "Generator" 
+                            textTag.Text.TextColor3 = Color3.fromRGB(Settings.GeneratorR, Settings.GeneratorG, Settings.GeneratorB)
+                        else 
+                            if highlight then highlight:Destroy() end 
+                            if textTag then textTag:Destroy() end 
+                        end
                     end
                 else table.remove(trackedGenerators, i) end
             end
+            
+            -- ПАЛЛЕТКИ (ОРИГИНАЛЬНАЯ ЛОГИКА - БЕЗ ИЗМЕНЕНИЙ)
             for i = #trackedPallets, 1, -1 do
                 local pallet = trackedPallets[i]
                 if pallet and pallet.Parent then
@@ -976,60 +1063,169 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
                                 highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = pallet
                             end
                             highlight.FillColor = Color3.fromRGB(Settings.PalletR, Settings.PalletG, Settings.PalletB)
-                        else if highlight then highlight:Destroy() end end
+                        else 
+                            if highlight then highlight:Destroy() end 
+                        end
                     end
                 else table.remove(trackedPallets, i) end
             end
+            
+            -- КРЮКИ (ИСПРАВЛЕННАЯ ЛОГИКА)
             for i = #trackedHooks, 1, -1 do
                 local hookObj = trackedHooks[i]
                 if hookObj and hookObj.Parent then
+                    local isBroken = false
+                    local lname = string.lower(hookObj.Name)
+                    if string.find(lname, "broken") or string.find(lname, "destroyed") then isBroken = true end
+                    if hookObj:GetAttribute("Broken") == true or hookObj:GetAttribute("Active") == false then isBroken = true end
+                    
                     local highlight = hookObj:FindFirstChild("EssentialESP")
-                    local targetPart = hookObj:IsA("Model") and hookObj.PrimaryPart or hookObj:IsA("BasePart") and hookObj or hookObj:FindFirstChildWhichIsA("BasePart")
-                    if targetPart then
+                    local targetPart = hookObj:IsA("Model") and (hookObj.PrimaryPart or hookObj:FindFirstChildWhichIsA("BasePart", true)) or (hookObj:IsA("BasePart") and hookObj or hookObj:FindFirstChildWhichIsA("BasePart", true))
+                    
+                    if targetPart and not isBroken then
                         local dist = (myPos - targetPart.Position).Magnitude
                         if Settings.HookESP and dist <= MAX_ESP_DISTANCE then
                             if not highlight then
                                 highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = hookObj
                             end
                             highlight.FillColor = Color3.fromRGB(Settings.HookR, Settings.HookG, Settings.HookB)
-                        else if highlight then highlight:Destroy() end end
+                        else 
+                            if highlight then highlight:Destroy() end 
+                        end
+                    else 
+                        if highlight then highlight:Destroy() end 
                     end
                 else table.remove(trackedHooks, i) end
             end
+            
+            -- ВОРОТА (ОРИГИНАЛЬНАЯ ЛОГИКА - БЕЗ ИЗМЕНЕНИЙ)
             for i = #trackedGates, 1, -1 do
                 local gate = trackedGates[i]
                 if gate and gate.Parent then
                     local highlight = gate:FindFirstChild("EssentialESP")
                     local targetPart = gate:IsA("Model") and gate.PrimaryPart or gate:IsA("BasePart") and gate or gate:FindFirstChildWhichIsA("BasePart")
                     if targetPart then
-                        local dist = (myPos - targetPart.Position).Magnitude
-                        if Settings.GateESP and dist <= MAX_ESP_DISTANCE then
+                        if Settings.GateESP then
                             if not highlight then
                                 highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = gate
                             end
                             highlight.FillColor = Color3.fromRGB(Settings.GateR, Settings.GateG, Settings.GateB)
-                        else if highlight then highlight:Destroy() end end
+                        else 
+                            if highlight then highlight:Destroy() end 
+                        end
                     end
                 else table.remove(trackedGates, i) end
             end
         end
 
+        -- БЕЗОПАСНАЯ ЛОГИКА NO STOP EMOTE
+        if Settings.NoStopEmote and LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+            if hum then
+                local animator = hum:FindFirstChildWhichIsA("Animator")
+                if animator then
+                    local isEmoting = false
+                    pcall(function()
+                        for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                            if track.Priority == Enum.AnimationPriority.Action and track.IsPlaying then
+                                isEmoting = true
+                                break
+                            end
+                        end
+                    end)
+                    if isEmoting and hum.WalkSpeed == 0 and hum.MoveDirection.Magnitude > 0 then
+                        hum.WalkSpeed = 16 -- Возвращаем скорость, если игра пытается остановить
+                    end
+                end
+            end
+        end
+
+        -- ESP ИГРОКОВ + STAFF TAGS
         for _, player in pairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character then
                 local isManiac = isPlayerManiac(player)
+                
+                local inLobby = false
+                if player.Team and (string.find(string.lower(player.Team.Name), "lobby") or string.find(string.lower(player.Team.Name), "menu") or string.find(string.lower(player.Team.Name), "spectat")) then
+                    inLobby = true
+                end
+                
+                local hum = player.Character:FindFirstChild("Humanoid")
+                if hum and hum.Health <= 0 then inLobby = true end
+                
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and myRoot and (hrp.Position - myRoot.Position).Magnitude > 3000 then
+                    inLobby = true
+                end
+                
                 local highlight = player.Character:FindFirstChild("EssentialESP")
-                local shouldHighlight = false local highlightColor = Color3.fromRGB(255, 255, 255)
-                if isManiac and Settings.ManiacESP then shouldHighlight = true highlightColor = Color3.fromRGB(Settings.ManiacR, Settings.ManiacG, Settings.ManiacB)
-                elseif not isManiac and Settings.SurvivorESP then shouldHighlight = true highlightColor = Color3.fromRGB(Settings.SurvivorR, Settings.SurvivorG, Settings.SurvivorB) end
+                local nameTag = player.Character:FindFirstChild("EssentialNameTag")
+                
+                local shouldHighlight = false 
+                local highlightColor = Color3.fromRGB(255, 255, 255)
+                
+                if not inLobby then
+                    if isManiac and Settings.ManiacESP then 
+                        shouldHighlight = true 
+                        highlightColor = Color3.fromRGB(Settings.ManiacR, Settings.ManiacG, Settings.ManiacB)
+                    elseif not isManiac and Settings.SurvivorESP then 
+                        shouldHighlight = true 
+                        highlightColor = Color3.fromRGB(Settings.SurvivorR, Settings.SurvivorG, Settings.SurvivorB) 
+                    end
+                end
+                
                 if shouldHighlight then
                     if not highlight then
                         highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = player.Character
                     end
                     highlight.FillColor = highlightColor
-                else if highlight then highlight:Destroy() end end
+                    
+                    if not nameTag then
+                        nameTag = Instance.new("BillboardGui")
+                        nameTag.Name = "EssentialNameTag"
+                        nameTag.Size = UDim2.new(0, 300, 0, 50)
+                        nameTag.StudsOffset = Vector3.new(0, 3, 0)
+                        nameTag.AlwaysOnTop = true
+                        
+                        local textLabel = Instance.new("TextLabel")
+                        textLabel.Name = "NameText"
+                        textLabel.Size = UDim2.new(1, 0, 1, 0)
+                        textLabel.BackgroundTransparency = 1
+                        textLabel.Font = Enum.Font.GothamBold
+                        textLabel.TextSize = 14
+                        textLabel.TextStrokeTransparency = 0.2
+                        textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+                        textLabel.RichText = true
+                        textLabel.Parent = nameTag
+                        
+                        local head = player.Character:FindFirstChild("Head") or player.Character:FindFirstChild("HumanoidRootPart")
+                        if head then
+                            nameTag.Adornee = head
+                            nameTag.Parent = player.Character
+                        end
+                    end
+                    
+                    if nameTag and nameTag:FindFirstChild("NameText") then
+                        local finalText = player.Name
+                        if Settings.StaffTags then
+                            local role = StaffList[player.Name]
+                            if role == "Dev" then
+                                finalText = '<font color="#8B0000">[</font><font color="#FF0000">Dev</font><font color="#800020">]</font> ' .. player.Name
+                            elseif role == "Tester" then
+                                finalText = '<font color="#7FFFD4">[</font><font color="#5FECC4">T</font><font color="#4FDAB4">e</font><font color="#3FC8A4">s</font><font color="#2FB694">t</font><font color="#1FA484">e</font><font color="#0F9274">r</font><font color="#7FFFD4">]</font> ' .. player.Name
+                            end
+                        end
+                        nameTag.NameText.Text = finalText
+                        nameTag.NameText.TextColor3 = highlightColor
+                    end
+                    
+                else 
+                    if highlight then highlight:Destroy() end 
+                    if nameTag then nameTag:Destroy() end
+                end
             end
         end
     end)
 end))
 
-print("[Essential Recode]: Perfect Config Sync + Touch Patch Loaded!")
+print("[Essential Recode]: Stable Build + Safe No Stop Emote Loaded!")
