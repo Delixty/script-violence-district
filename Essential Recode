@@ -1,5 +1,5 @@
--- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR + GATE ESP + NAME ESP + STAFF TAGS
--- [FIXED] Gate ESP Revived, NoStopEmote Removed, Lobby ESP Auto-Hide, Generator Labels Removed
+-- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR + GATE ESP + NAME ESP
+-- [FIXED] Gate ESP Revived, NoStopEmote Removed, Lobby ESP Auto-Hide, Generator Labels Removed, Staff Tags Removed
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -14,8 +14,10 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 15)
 local connections = {}
 local UI_Elements = {}
 local SearchableElements = {}
+
 -- Таблица трекинга для динамической смены цветов интерфейса
 local ThemeElements = { Gradients = {}, Texts = {}, MainStrokes = {}, DarkStrokes = {}, Scrollbars = {} }
+
 -- Настройки по умолчанию
 local Settings = {
     ManiacESP = false, ManiacR = 239, ManiacG = 68, ManiacB = 68,
@@ -35,16 +37,10 @@ local Settings = {
     SkyEnabled = false, SkyBright = 50, SkyExp = 50, SkyR = 100, SkyG = 160, SkyB = 255,
     HorR = 200, HorG = 220, HorB = 255, SkyPreset = "Default",
     HUDEnabled = false, HUDFPS = true, HUDPing = true, HUDKiller = true,
-    StaffTags = false,
     -- UI Settings
     DeviceMode = "PC", AccentR = 168, AccentG = 85, AccentB = 247
 }
--- СПИСОК РОЛЕЙ (STAFF TAGS)
-local StaffList = {
-    ["MilkDark1999"] = "Dev",
-    ["TimmyMartyn"] = "Tester",
-    ["xbsjbjdb"] = "Tester"
-}
+
 local function ApplyTheme()
     local base = Color3.fromRGB(Settings.AccentR, Settings.AccentG, Settings.AccentB)
     local h, s, v = Color3.toHSV(base)
@@ -75,6 +71,7 @@ local function ApplyTheme()
         if obj and obj.Parent then obj.ScrollBarImageColor3 = strokeMain else table.remove(ThemeElements.Scrollbars, i) end
     end
 end
+
 local currentLight = nil
 local noclipOriginalCollide = {}
 local noclipConnection = nil
@@ -87,6 +84,7 @@ local DefaultLighting = {
     ClockTime = Lighting.ClockTime, FogColor = Lighting.FogColor,
     FogStart = Lighting.FogStart, FogEnd = Lighting.FogEnd
 }
+
 local _skyboxApplying = false
 local skyboxGuardConnections = {}
 local SkySettings = { StarCount = 1000, SunAngularSize = 11, MoonAngularSize = 11, CelestialBodiesShown = true }
@@ -95,6 +93,7 @@ local trackedPallets = {}
 local trackedHooks = {}
 local trackedGates = {}
 local MAX_ESP_DISTANCE = 100
+
 -- Цвета UI
 local BgMain = Color3.fromRGB(10, 10, 10)
 local BgHeader = Color3.fromRGB(16, 16, 16)
@@ -103,11 +102,13 @@ local BgElement = Color3.fromRGB(20, 20, 20)
 local BgDark = Color3.fromRGB(4, 4, 4)
 local TextColor = Color3.fromRGB(245, 245, 245)
 local TextMuted = Color3.fromRGB(130, 130, 130)
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "EssentialUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
 local successParent = false
 if CoreGui then
     pcall(function() for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "EssentialUI" then v:Destroy() end end ScreenGui.Parent = CoreGui successParent = true end)
@@ -115,39 +116,50 @@ end
 if not successParent and PlayerGui then
     for _, v in pairs(PlayerGui:GetChildren()) do if v.Name == "EssentialUI" then v:Destroy() end end ScreenGui.Parent = PlayerGui
 end
+
 local CrosshairCenter = Instance.new("Frame", ScreenGui) CrosshairCenter.Name = "EssentialCrosshair" CrosshairCenter.BackgroundTransparency = 1 CrosshairCenter.Size = UDim2.new(0, 0, 0, 0) CrosshairCenter.Position = UDim2.new(0.5, 0, 0.5, 0) CrosshairCenter.Visible = false
 local CrosshairH = Instance.new("Frame", CrosshairCenter) CrosshairH.AnchorPoint = Vector2.new(0.5, 0.5) CrosshairH.BorderSizePixel = 0 CrosshairH.Parent = CrosshairCenter
 local CrosshairV = Instance.new("Frame", CrosshairCenter) CrosshairV.AnchorPoint = Vector2.new(0.5, 0.5) CrosshairV.BorderSizePixel = 0 CrosshairV.Parent = CrosshairCenter
+
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.AnchorPoint = Vector2.new(0.5, 1) MainFrame.Position = UDim2.new(0.5, 0, 1, -15) MainFrame.Size = UDim2.new(0, 200, 0, 45) MainFrame.BackgroundColor3 = BgMain MainFrame.BorderSizePixel = 0 MainFrame.ClipsDescendants = true
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
 local MainStroke = Instance.new("UIStroke", MainFrame) MainStroke.Thickness = 1.5
 table.insert(ThemeElements.MainStrokes, MainStroke)
+
 local MainUIScale = Instance.new("UIScale", MainFrame)
 MainUIScale.Scale = 1
+
 local Header = Instance.new("Frame", MainFrame) Header.Size = UDim2.new(1, 0, 0, 45) Header.BackgroundColor3 = BgHeader Header.BorderSizePixel = 0 Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
 local HeaderBottom = Instance.new("Frame", Header) HeaderBottom.Size = UDim2.new(1, 0, 0, 12) HeaderBottom.Position = UDim2.new(0, 0, 1, -12) HeaderBottom.BackgroundColor3 = BgHeader HeaderBottom.BorderSizePixel = 0 HeaderBottom.Visible = false
 local HeaderBottomStroke = Instance.new("Frame", HeaderBottom) HeaderBottomStroke.Size = UDim2.new(1, 0, 0, 1) HeaderBottomStroke.Position = UDim2.new(0, 0, 1, 0) HeaderBottomStroke.BorderSizePixel = 0
 table.insert(ThemeElements.DarkStrokes, HeaderBottomStroke)
+
 local GearBtn = Instance.new("ImageButton", Header)
 GearBtn.Size = UDim2.new(0, 20, 0, 20) GearBtn.Position = UDim2.new(1, -30, 0.5, -10) GearBtn.BackgroundTransparency = 1 GearBtn.Image = "rbxassetid://7059346373" GearBtn.ImageColor3 = Color3.fromRGB(255, 255, 255) GearBtn.Visible = false GearBtn.ZIndex = 5
+
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(1, 0, 1, 0) Title.Position = UDim2.new(0, 0, 0, 0) Title.BackgroundTransparency = 1 Title.Text = "Essential Recode" Title.TextColor3 = Color3.fromRGB(255, 255, 255) Title.TextSize = 15 Title.Font = Enum.Font.GothamBold Title.TextXAlignment = Enum.TextXAlignment.Center
 local TitleGrad = Instance.new("UIGradient", Title) table.insert(ThemeElements.Gradients, TitleGrad)
+
 local Body = Instance.new("Frame", MainFrame) Body.Size = UDim2.new(1, 0, 1, -45) Body.Position = UDim2.new(0, 0, 0, 45) Body.BackgroundTransparency = 1 Body.Visible = false
 local SettingsOverlay = Instance.new("ScrollingFrame", Body)
 SettingsOverlay.Name = "SettingsOverlay" SettingsOverlay.Size = UDim2.new(1, 0, 1, 0) SettingsOverlay.BackgroundTransparency = 1 SettingsOverlay.BorderSizePixel = 0 SettingsOverlay.ScrollBarThickness = 4 SettingsOverlay.Visible = false SettingsOverlay.ZIndex = 2
 table.insert(ThemeElements.Scrollbars, SettingsOverlay)
+
 local soLayout = Instance.new("UIListLayout", SettingsOverlay) soLayout.SortOrder = Enum.SortOrder.LayoutOrder soLayout.Padding = UDim.new(0, 10)
 local soPadding = Instance.new("UIPadding", SettingsOverlay) soPadding.PaddingTop = UDim.new(0, 15) soPadding.PaddingLeft = UDim.new(0, 15) soPadding.PaddingRight = UDim.new(0, 15) soPadding.PaddingBottom = UDim.new(0, 15)
 soLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() SettingsOverlay.CanvasSize = UDim2.new(0, 0, 0, soLayout.AbsoluteContentSize.Y + 30) end)
+
 local Topbar = Instance.new("Frame", Body) Topbar.Size = UDim2.new(1, 0, 0, 42) Topbar.BackgroundColor3 = BgSidebar Topbar.BorderSizePixel = 0
 local ContentArea = Instance.new("Frame", Body) ContentArea.Size = UDim2.new(1, 0, 1, -42) ContentArea.Position = UDim2.new(0, 0, 0, 42) ContentArea.BackgroundTransparency = 1
+
 GearBtn.MouseButton1Click:Connect(function()
     SettingsOverlay.Visible = not SettingsOverlay.Visible
     ContentArea.Visible = not SettingsOverlay.Visible
     Topbar.Visible = not SettingsOverlay.Visible
 end)
+
 local isMenuOpen = false
 local function ToggleMenu()
     isMenuOpen = not isMenuOpen
@@ -164,6 +176,7 @@ local function ToggleMenu()
         task.delay(0.2, function() if not isMenuOpen then Body.Visible = false HeaderBottom.Visible = false end end)
     end
 end
+
 local dragging, dragInput, dragStartPos, dragStartFramePos
 local touchStartTime = 0
 Header.InputBegan:Connect(function(input)
@@ -182,6 +195,7 @@ Header.InputEnded:Connect(function(input)
         if dragStartPos and (input.Position - dragStartPos).Magnitude < 15 and (os.clock() - touchStartTime) < 0.3 then ToggleMenu() end
     end
 end)
+
 table.insert(connections, UserInputService.InputChanged:Connect(function(input)
     if input == dragInput and dragging and Body.Visible then
         local delta = input.Position - dragStartPos
@@ -209,15 +223,19 @@ table.insert(connections, UserInputService.InputBegan:Connect(function(input, ga
         end
     end
 end))
+
 local TopbarStroke = Instance.new("Frame", Topbar) TopbarStroke.Size = UDim2.new(1, 0, 0, 1) TopbarStroke.Position = UDim2.new(0, 0, 1, 0) TopbarStroke.BorderSizePixel = 0
 table.insert(ThemeElements.DarkStrokes, TopbarStroke)
+
 local TabContainer = Instance.new("ScrollingFrame", Topbar) TabContainer.Size = UDim2.new(1, -170, 1, 0) TabContainer.BackgroundTransparency = 1 TabContainer.ScrollingDirection = Enum.ScrollingDirection.X TabContainer.ScrollBarThickness = 0 TabContainer.ClipsDescendants = true
 local TabListLayout = Instance.new("UIListLayout", TabContainer) TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder TabListLayout.FillDirection = Enum.FillDirection.Horizontal TabListLayout.Padding = UDim.new(0, 8)
 local TabPadding = Instance.new("UIPadding", TabContainer) TabPadding.PaddingTop = UDim.new(0, 8) TabPadding.PaddingLeft = UDim.new(0, 15) TabPadding.PaddingRight = UDim.new(0, 10)
 TabListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() TabContainer.CanvasSize = UDim2.new(0, TabListLayout.AbsoluteContentSize.X + 25, 0, 0) end)
+
 local SearchFrame = Instance.new("Frame", Topbar) SearchFrame.AnchorPoint = Vector2.new(1, 0) SearchFrame.Position = UDim2.new(1, -10, 0, 8) SearchFrame.Size = UDim2.new(0, 150, 0, 26) SearchFrame.BackgroundColor3 = BgDark SearchFrame.BorderSizePixel = 0 SearchFrame.ZIndex = 5 Instance.new("UICorner", SearchFrame).CornerRadius = UDim.new(0, 6)
 local SearchStrokeObj = Instance.new("UIStroke", SearchFrame) SearchStrokeObj.Thickness = 1 SearchStrokeObj.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 table.insert(ThemeElements.DarkStrokes, SearchStrokeObj)
+
 local SearchInput = Instance.new("TextBox", SearchFrame) SearchInput.Size = UDim2.new(1, -20, 1, 0) SearchInput.Position = UDim2.new(0, 10, 0, 0) SearchInput.BackgroundTransparency = 1 SearchInput.Text = "" SearchInput.PlaceholderText = "Search..." SearchInput.TextColor3 = TextColor SearchInput.PlaceholderColor3 = TextMuted SearchInput.TextSize = 12 SearchInput.Font = Enum.Font.Gotham SearchInput.TextXAlignment = Enum.TextXAlignment.Left SearchInput.ClearTextOnFocus = false SearchInput.ZIndex = 6
 SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
     local query = string.lower(SearchInput.Text)
@@ -225,14 +243,17 @@ SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
         if item.frame and item.frame.Parent then item.frame.Visible = (query == "" or string.find(item.text, query) ~= nil) end
     end
 end)
+
 local ContentPadding = Instance.new("UIPadding", ContentArea) ContentPadding.PaddingTop = UDim.new(0, 12) ContentPadding.PaddingLeft = UDim.new(0, 15) ContentPadding.PaddingRight = UDim.new(0, 15) ContentPadding.PaddingBottom = UDim.new(0, 12)
 local tabs = {}
+
 local function ShouldBeSearchable(obj)
     local current = obj
     while current and current ~= game do
         if current.Name == "ConfigPage" or current.Name == "SettingsOverlay" then return false end current = current.Parent
     end return true
 end
+
 local function CreateTab(name)
     local btn = Instance.new("TextButton", TabContainer) btn.Size = UDim2.new(0, 85, 0, 26) btn.BackgroundColor3 = BgDark btn.BackgroundTransparency = 1 btn.Text = ""
     local bgFrame = Instance.new("Frame", btn) bgFrame.Size = UDim2.new(1, 0, 1, 0) bgFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255) bgFrame.BackgroundTransparency = 1 Instance.new("UICorner", bgFrame).CornerRadius = UDim.new(0, 6)
@@ -249,6 +270,7 @@ local function CreateTab(name)
     end)
     return page, btn, bgFrame, grad, lbl
 end
+
 local function CreateToggle(parent, text, default, callback)
     local frame = Instance.new("Frame", parent) frame.Size = UDim2.new(1, 0, 0, 42) frame.BackgroundColor3 = BgElement Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
     local stroke = Instance.new("UIStroke", frame) stroke.Thickness = 1 table.insert(ThemeElements.DarkStrokes, stroke)
@@ -266,6 +288,7 @@ local function CreateToggle(parent, text, default, callback)
     end
     btn.MouseButton1Click:Connect(function() setState(not state) end) return setState
 end
+
 local function CreateSlider(parent, text, min, max, default, callback)
     local frame = Instance.new("Frame", parent) frame.Size = UDim2.new(1, 0, 0, 54) frame.BackgroundColor3 = BgElement Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
     local stroke = Instance.new("UIStroke", frame) stroke.Thickness = 1 table.insert(ThemeElements.DarkStrokes, stroke)
@@ -294,6 +317,7 @@ local function CreateSlider(parent, text, min, max, default, callback)
     end)) 
     return setVal
 end
+
 local function CreateButton(parent, text, isAccent, callback)
     local btn = Instance.new("TextButton", parent) btn.Size = UDim2.new(1, 0, 0, 38) btn.Text = text btn.TextColor3 = Color3.fromRGB(255, 255, 255) btn.TextSize = 13 btn.Font = Enum.Font.GothamBold Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
     local stroke = Instance.new("UIStroke", btn) table.insert(ThemeElements.DarkStrokes, stroke)
@@ -306,6 +330,7 @@ local function CreateButton(parent, text, isAccent, callback)
     if ShouldBeSearchable(parent) then table.insert(SearchableElements, {frame = btn, text = string.lower(text)}) end
     btn.MouseButton1Click:Connect(callback) return btn
 end
+
 local function CreateInput(parent, placeholder, callback)
     local frame = Instance.new("Frame", parent) frame.Size = UDim2.new(1, 0, 0, 42) frame.BackgroundColor3 = BgElement Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
     local stroke = Instance.new("UIStroke", frame) table.insert(ThemeElements.DarkStrokes, stroke)
@@ -313,9 +338,11 @@ local function CreateInput(parent, placeholder, callback)
     if ShouldBeSearchable(parent) then table.insert(SearchableElements, {frame = frame, text = string.lower(placeholder)}) end
     box.FocusLost:Connect(function() callback(box.Text) end) return function(txt) box.Text = txt callback(txt) end
 end
+
 local function CreateLabel(parent, defaultText)
     local label = Instance.new("TextLabel", parent) label.Size = UDim2.new(1, 0, 0, 20) label.BackgroundTransparency = 1 label.Text = defaultText label.TextColor3 = TextMuted label.TextSize = 12 label.Font = Enum.Font.GothamSemibold label.TextXAlignment = Enum.TextXAlignment.Center return function(txt) label.Text = txt end
 end
+
 local function CreateDropdownSection(parent, titleText)
     local mainFrame = Instance.new("Frame", parent) mainFrame.Size = UDim2.new(1, 0, 0, 42) mainFrame.BackgroundColor3 = BgElement mainFrame.ClipsDescendants = true mainFrame.BorderSizePixel = 0 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
     local stroke = Instance.new("UIStroke", mainFrame) table.insert(ThemeElements.DarkStrokes, stroke)
@@ -335,6 +362,7 @@ local function CreateDropdownSection(parent, titleText)
         if isOpen then mainFrame.Size = UDim2.new(1, 0, 0, list.AbsoluteContentSize.Y + 56) end container.Size = UDim2.new(1, -20, 0, list.AbsoluteContentSize.Y)
     end)  return container
 end
+
 local function CreateDropdown(parent, text, options, default, callback)
     local frame = Instance.new("Frame", parent) frame.Size = UDim2.new(1, 0, 0, 42) frame.BackgroundColor3 = BgElement frame.ClipsDescendants = true Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
     local stroke = Instance.new("UIStroke", frame) table.insert(ThemeElements.DarkStrokes, stroke)
@@ -364,6 +392,7 @@ local function CreateDropdown(parent, text, options, default, callback)
     selector.MouseButton1Click:Connect(function() isOpen = not isOpen arrow.Text = isOpen and "▲" or "▼" local targetH = isOpen and (42 + optLayout.AbsoluteContentSize.Y + 8) or 42 TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, targetH)}):Play() end)
     return setValue
 end
+
 -- ==============================================
 -- СТРАНИЦА НАСТРОЕК UI (Оверлей)
 -- ==============================================
@@ -428,7 +457,6 @@ UI_Elements.sliderHookR = CreateSlider(hookDropdown, "Color: Red (R)", 0, 255, 2
 UI_Elements.sliderHookG = CreateSlider(hookDropdown, "Color: Green (G)", 0, 255, 0, function(val) Settings.HookG = val end)
 UI_Elements.sliderHookB = CreateSlider(hookDropdown, "Color: Blue (B)", 0, 255, 0, function(val) Settings.HookB = val end)
 
--- ВОССТАНОВЛЕН GATE ESP (РАБОЧИЕ ПОЛЗУНКИ)
 local gateDropdown = CreateDropdownSection(MainPage, "Gate ESP")
 UI_Elements.toggleGate = CreateToggle(gateDropdown, "Enable Gate ESP", false, function(state) Settings.GateESP = state end)
 UI_Elements.sliderGateR = CreateSlider(gateDropdown, "Color: Red (R)", 0, 255, 0, function(val) Settings.GateR = val end)
@@ -611,8 +639,6 @@ UI_Elements.toggleShowFPS = CreateToggle(hudDropdown, "Show FPS", true, function
 UI_Elements.toggleShowPing = CreateToggle(hudDropdown, "Show Ping", true, function(state) Settings.HUDPing = state RefreshHUDVisibility() end)
 UI_Elements.toggleShowKiller = CreateToggle(hudDropdown, "Show Killer Info", true, function(state) Settings.HUDKiller = state RefreshHUDVisibility() end)
 
-UI_Elements.toggleStaffTags = CreateToggle(VisualPage, "Enable Staff Tags", false, function(state) Settings.StaffTags = state end)
-
 local aspectDropdown = CreateDropdownSection(MiscPage, "Aspect Ratio (Stretched)")
 UI_Elements.toggleStretch = CreateToggle(aspectDropdown, "Enable Stretch", false, function(state) Settings.Stretch = state end)
 UI_Elements.dropdownStretch = CreateDropdown(aspectDropdown, "Resolution", {"16:9 (Default)", "16:10", "4:3", "5:4", "3:4", "Custom"}, "16:9 (Default)", function(val) Settings.StretchPreset = val end)
@@ -719,7 +745,6 @@ CreateButton(ConfigPage, "Load Config", false, function()
                 if UI_Elements.sliderGateR then UI_Elements.sliderGateR(data.GateR or 0) end
                 if UI_Elements.sliderGateG then UI_Elements.sliderGateG(data.GateG or 255) end
                 if UI_Elements.sliderGateB then UI_Elements.sliderGateB(data.GateB or 255) end
-                if UI_Elements.toggleStaffTags then UI_Elements.toggleStaffTags(data.StaffTags or false) end
                 if UI_Elements.toggleFOVSet then UI_Elements.toggleFOVSet(data.FOVEnabled or false) end
                 if UI_Elements.sliderSet then UI_Elements.sliderSet(data.FOV or 70) end
                 if UI_Elements.toggleSpeedSet then UI_Elements.toggleSpeedSet(data.Speedhack or false) end
@@ -1051,82 +1076,88 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
                 else table.remove(trackedGates, i) end
             end
         end
-        
-        -- ESP ИГРОКОВ + STAFF TAGS
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local isManiac = isPlayerManiac(player)
-                local inLobby = false
-                if player.Team and (string.find(string.lower(player.Team.Name), "lobby") or string.find(string.lower(player.Team.Name), "menu") or string.find(string.lower(player.Team.Name), "spectat")) then
-                    inLobby = true
-                end
-                local hum = player.Character:FindFirstChild("Humanoid")
-                if hum and hum.Health <= 0 then inLobby = true end
-                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-                if hrp and myRoot and (hrp.Position - myRoot.Position).Magnitude > 3000 then
-                    inLobby = true
-                end
-                local highlight = player.Character:FindFirstChild("EssentialESP")
-                local nameTag = player.Character:FindFirstChild("EssentialNameTag")
-                local shouldHighlight = false 
-                local highlightColor = Color3.fromRGB(255, 255, 255)
-                
-                if not espBlocked and not inLobby then
-                    if isManiac and Settings.ManiacESP then 
-                        shouldHighlight = true 
+
+        -- ESP ИГРОКОВ (Здесь полностью вырезаны Staff Tags)
+        if not espBlocked and myRoot then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local targetRoot = player.Character.HumanoidRootPart
+                    local dist = (myRoot.Position - targetRoot.Position).Magnitude
+                    local isManiac = isPlayerManiac(player)
+                    
+                    local shouldHighlight = false
+                    local highlightColor = Color3.new(1, 1, 1)
+                    
+                    if isManiac and Settings.ManiacESP then
+                        shouldHighlight = true
                         highlightColor = Color3.fromRGB(Settings.ManiacR, Settings.ManiacG, Settings.ManiacB)
-                    elseif not isManiac and Settings.SurvivorESP then 
-                        shouldHighlight = true 
-                        highlightColor = Color3.fromRGB(Settings.SurvivorR, Settings.SurvivorG, Settings.SurvivorB) 
+                    elseif not isManiac and Settings.SurvivorESP then
+                        shouldHighlight = true
+                        highlightColor = Color3.fromRGB(Settings.SurvivorR, Settings.SurvivorG, Settings.SurvivorB)
                     end
-                end
-                
-                if shouldHighlight then
-                    if not highlight then
-                        highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = player.Character
-                    end
-                    highlight.FillColor = highlightColor
-                    if not nameTag then
-                        nameTag = Instance.new("BillboardGui")
-                        nameTag.Name = "EssentialNameTag"
-                        nameTag.Size = UDim2.new(0, 300, 0, 50)
-                        nameTag.StudsOffset = Vector3.new(0, 3, 0)
-                        nameTag.AlwaysOnTop = true
-                        local textLabel = Instance.new("TextLabel")
-                        textLabel.Name = "NameText"
-                        textLabel.Size = UDim2.new(1, 0, 1, 0)
-                        textLabel.BackgroundTransparency = 1
-                        textLabel.Font = Enum.Font.GothamBold
-                        textLabel.TextSize = 14
-                        textLabel.TextStrokeTransparency = 0.2
-                        textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-                        textLabel.RichText = true
-                        textLabel.Parent = nameTag
-                        local head = player.Character:FindFirstChild("Head") or player.Character:FindFirstChild("HumanoidRootPart")
-                        if head then
-                            nameTag.Adornee = head
-                            nameTag.Parent = player.Character
+                    
+                    local highlight = player.Character:FindFirstChild("EssentialESP")
+                    local nameTag = player.Character:FindFirstChild("EssentialNameTag")
+                    
+                    if shouldHighlight then
+                        if not highlight then
+                            highlight = Instance.new("Highlight")
+                            highlight.Name = "EssentialESP"
+                            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                            highlight.FillTransparency = 0.5
+                            highlight.OutlineTransparency = 0.2
+                            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            highlight.Parent = player.Character
                         end
-                    end
-                    if nameTag and nameTag:FindFirstChild("NameText") then
-                        local finalText = player.Name
-                        if Settings.StaffTags then
-                            local role = StaffList[player.Name]
-                            if role == "Dev" then
-                                finalText = '<font color="#8B0000">[</font><font color="#FF0000">Dev</font><font color="#800020">]</font> ' .. player.Name
-                            elseif role == "Tester" then
-                                finalText = '<font color="#7FFFD4">[</font><font color="#5FECC4">T</font><font color="#4FDAB4">e</font><font color="#3FC8A4">s</font><font color="#2FB694">t</font><font color="#1FA484">e</font><font color="#0F9274">r</font><font color="#7FFFD4">]</font> ' .. player.Name
+                        highlight.FillColor = highlightColor
+                        
+                        if not nameTag then
+                            nameTag = Instance.new("BillboardGui")
+                            nameTag.Name = "EssentialNameTag"
+                            nameTag.Size = UDim2.new(0, 300, 0, 50)
+                            nameTag.StudsOffset = Vector3.new(0, 3, 0)
+                            nameTag.AlwaysOnTop = true
+                            
+                            local textLabel = Instance.new("TextLabel")
+                            textLabel.Name = "NameText"
+                            textLabel.Size = UDim2.new(1, 0, 1, 0)
+                            textLabel.BackgroundTransparency = 1
+                            textLabel.Font = Enum.Font.GothamBold
+                            textLabel.TextSize = 14
+                            textLabel.TextStrokeTransparency = 0.2
+                            textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+                            textLabel.RichText = true
+                            textLabel.Parent = nameTag
+                            
+                            local head = player.Character:FindFirstChild("Head") or targetRoot
+                            if head then
+                                nameTag.Adornee = head
+                                nameTag.Parent = player.Character
                             end
                         end
-                        nameTag.NameText.Text = finalText
-                        nameTag.NameText.TextColor3 = highlightColor
+                        
+                        -- Просто пишем чистое имя и дистанцию
+                        if nameTag and nameTag:FindFirstChild("NameText") then
+                            nameTag.NameText.TextColor3 = highlightColor
+                            nameTag.NameText.Text = string.format("%s [%dm]", player.Name, math.floor(dist))
+                        end
+                    else
+                        if highlight then highlight:Destroy() end
+                        if nameTag then nameTag:Destroy() end
                     end
-                else 
-                    if highlight then highlight:Destroy() end 
+                end
+            end
+        else
+            -- Если мы в лобби, отключаем ESP игроков
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player.Character then
+                    local highlight = player.Character:FindFirstChild("EssentialESP")
+                    local nameTag = player.Character:FindFirstChild("EssentialNameTag")
+                    if highlight then highlight:Destroy() end
                     if nameTag then nameTag:Destroy() end
                 end
             end
         end
     end)
 end))
-print("[Essential Recode]: Rollback Version (Gate ESP Fixed & No Stop Emote Removed) Loaded!")
+print("[Essential Recode]: Rollback Version (Gate ESP Fixed & No Stop Emote Removed & Staff Tags Removed) Loaded!")
