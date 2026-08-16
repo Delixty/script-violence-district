@@ -1,5 +1,5 @@
 -- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR + GATE ESP + NAME ESP + STAFF TAGS
--- [FIXED] No Stop Emote Rework, Lobby ESP Auto-Hide, Generator Labels Removed
+-- [FIXED] Gate ESP Revived, NoStopEmote Removed, Lobby ESP Auto-Hide, Generator Labels Removed
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -36,7 +36,6 @@ local Settings = {
     HorR = 200, HorG = 220, HorB = 255, SkyPreset = "Default",
     HUDEnabled = false, HUDFPS = true, HUDPing = true, HUDKiller = true,
     StaffTags = false,
-    NoStopEmote = false,
     -- UI Settings
     DeviceMode = "PC", AccentR = 168, AccentG = 85, AccentB = 247
 }
@@ -350,7 +349,15 @@ local function CreateDropdown(parent, text, options, default, callback)
     local function setValue(val) currentValue = val selector.Text = "   " .. tostring(val) callback(val) end
     for _, opt in ipairs(options) do
         local optBtn = Instance.new("TextButton", optionHolder) optBtn.Size = UDim2.new(1, 0, 0, 26) optBtn.BackgroundColor3 = BgDark optBtn.Text = tostring(opt) optBtn.TextColor3 = TextColor optBtn.TextSize = 12 optBtn.Font = Enum.Font.Gotham Instance.new("UICorner", optBtn).CornerRadius = UDim.new(0, 4)
-        optBtn.MouseEnter:Connect(function() TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 30, 90)}):Play() end)
+        
+        -- DYNAMIC HOVER COLOR
+        optBtn.MouseEnter:Connect(function() 
+            local base = Color3.fromRGB(Settings.AccentR, Settings.AccentG, Settings.AccentB)
+            local h, s, v = Color3.toHSV(base)
+            local hoverColor = Color3.fromHSV(h, s, math.clamp(v - 0.5, 0.1, 1))
+            TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = hoverColor}):Play() 
+        end)
+        
         optBtn.MouseLeave:Connect(function() TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = BgDark}):Play() end)
         optBtn.MouseButton1Click:Connect(function() setValue(opt) isOpen = false arrow.Text = "▼" TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42)}):Play() end)
     end
@@ -370,11 +377,13 @@ end)
 UI_Elements.sliderAccR = CreateSlider(SettingsOverlay, "Accent Red (R)", 0, 255, Settings.AccentR, function(val) Settings.AccentR = val ApplyTheme() end)
 UI_Elements.sliderAccG = CreateSlider(SettingsOverlay, "Accent Green (G)", 0, 255, Settings.AccentG, function(val) Settings.AccentG = val ApplyTheme() end)
 UI_Elements.sliderAccB = CreateSlider(SettingsOverlay, "Accent Blue (B)", 0, 255, Settings.AccentB, function(val) Settings.AccentB = val ApplyTheme() end)
+
 local MainPage, MainBtn, MainBg, MainGrad, MainLbl = CreateTab("Main")
 local VisualPage, VisualBtn = CreateTab("Visual")
 local MiscPage, MiscBtn = CreateTab("Misc")
 local ConfigPage, ConfigBtn = CreateTab("Config")
 MainBg.BackgroundTransparency = 0 MainLbl.TextColor3 = Color3.fromRGB(255, 255, 255) MainGrad.Enabled = true MainPage.Visible = true
+
 local function isPlayerManiac(player)
     if not player or not player.Character then return false end
     if player.Team and (string.find(string.lower(player.Team.Name), "killer") or string.find(string.lower(player.Team.Name), "maniac")) then return true end
@@ -388,41 +397,43 @@ local function isPlayerManiac(player)
     local hum = player.Character:FindFirstChild("Humanoid")
     if hum and hum.MaxHealth > 100 and hum.MaxHealth < 9999 then return true end return false
 end
+
 local maniacDropdown = CreateDropdownSection(MainPage, "Maniac ESP")
 UI_Elements.toggleManiac = CreateToggle(maniacDropdown, "Enable Maniac ESP", false, function(state) Settings.ManiacESP = state end)
 UI_Elements.sliderMR = CreateSlider(maniacDropdown, "Color: Red (R)", 0, 255, 239, function(val) Settings.ManiacR = val end)
 UI_Elements.sliderMG = CreateSlider(maniacDropdown, "Color: Green (G)", 0, 255, 68, function(val) Settings.ManiacG = val end)
 UI_Elements.sliderMB = CreateSlider(maniacDropdown, "Color: Blue (B)", 0, 255, 68, function(val) Settings.ManiacB = val end)
+
 local survivorDropdown = CreateDropdownSection(MainPage, "Survivor ESP")
 UI_Elements.toggleSurvivor = CreateToggle(survivorDropdown, "Enable Survivor ESP", false, function(state) Settings.SurvivorESP = state end)
 UI_Elements.sliderSR = CreateSlider(survivorDropdown, "Color: Red (R)", 0, 255, 34, function(val) Settings.SurvivorR = val end)
 UI_Elements.sliderSG = CreateSlider(survivorDropdown, "Color: Green (G)", 0, 255, 197, function(val) Settings.SurvivorG = val end)
 UI_Elements.sliderSB = CreateSlider(survivorDropdown, "Color: Blue (B)", 0, 255, 94, function(val) Settings.SurvivorB = val end)
+
 local generatorDropdown = CreateDropdownSection(MainPage, "Generator ESP")
 UI_Elements.toggleGenerator = CreateToggle(generatorDropdown, "Enable Generator ESP", false, function(state) Settings.GeneratorESP = state end)
 UI_Elements.sliderGR = CreateSlider(generatorDropdown, "Color: Red (R)", 0, 255, 255, function(val) Settings.GeneratorR = val end)
 UI_Elements.sliderGG = CreateSlider(generatorDropdown, "Color: Green (G)", 0, 255, 255, function(val) Settings.GeneratorG = val end)
 UI_Elements.sliderGB = CreateSlider(generatorDropdown, "Color: Blue (B)", 0, 255, 0, function(val) Settings.GeneratorB = val end)
+
 local palletDropdown = CreateDropdownSection(MainPage, "Pallet ESP")
 UI_Elements.togglePallet = CreateToggle(palletDropdown, "Enable Pallet ESP", false, function(state) Settings.PalletESP = state end)
 UI_Elements.sliderPR = CreateSlider(palletDropdown, "Color: Red (R)", 0, 255, 255, function(val) Settings.PalletR = val end)
 UI_Elements.sliderPG = CreateSlider(palletDropdown, "Color: Green (G)", 0, 255, 128, function(val) Settings.PalletG = val end)
 UI_Elements.sliderPB = CreateSlider(palletDropdown, "Color: Blue (B)", 0, 255, 0, function(val) Settings.PalletB = val end)
+
 local hookDropdown = CreateDropdownSection(MainPage, "Hook ESP")
 UI_Elements.toggleHook = CreateToggle(hookDropdown, "Enable Hook ESP", false, function(state) Settings.HookESP = state end)
 UI_Elements.sliderHookR = CreateSlider(hookDropdown, "Color: Red (R)", 0, 255, 255, function(val) Settings.HookR = val end)
 UI_Elements.sliderHookG = CreateSlider(hookDropdown, "Color: Green (G)", 0, 255, 0, function(val) Settings.HookG = val end)
 UI_Elements.sliderHookB = CreateSlider(hookDropdown, "Color: Blue (B)", 0, 255, 0, function(val) Settings.HookB = val end)
-local gateDropdown = CreateDropdownSection(MainPage, "Gate ESP")
 
--- Заглушка красным текстом
-local gateDisabledLabel = Instance.new("TextLabel", gateDropdown)
-gateDisabledLabel.Size = UDim2.new(1, 0, 0, 42)
-gateDisabledLabel.BackgroundTransparency = 1
-gateDisabledLabel.Text = "Функция временно отключена"
-gateDisabledLabel.TextColor3 = Color3.fromRGB(255, 75, 75) -- Красный цвет
-gateDisabledLabel.Font = Enum.Font.GothamBold
-gateDisabledLabel.TextSize = 13
+-- ВОССТАНОВЛЕН GATE ESP (РАБОЧИЕ ПОЛЗУНКИ)
+local gateDropdown = CreateDropdownSection(MainPage, "Gate ESP")
+UI_Elements.toggleGate = CreateToggle(gateDropdown, "Enable Gate ESP", false, function(state) Settings.GateESP = state end)
+UI_Elements.sliderGateR = CreateSlider(gateDropdown, "Color: Red (R)", 0, 255, 0, function(val) Settings.GateR = val end)
+UI_Elements.sliderGateG = CreateSlider(gateDropdown, "Color: Green (G)", 0, 255, 255, function(val) Settings.GateG = val end)
+UI_Elements.sliderGateB = CreateSlider(gateDropdown, "Color: Blue (B)", 0, 255, 255, function(val) Settings.GateB = val end)
 
 local flashDropdown = CreateDropdownSection(VisualPage, "Custom Flashlight")
 UI_Elements.toggleFlashlight = CreateToggle(flashDropdown, "Enable Flashlight", false, function(state) Settings.Flashlight = state end)
@@ -430,6 +441,7 @@ UI_Elements.sliderFlashRange = CreateSlider(flashDropdown, "Flashlight Range", 1
 UI_Elements.sliderFlashR = CreateSlider(flashDropdown, "Color: Red (R)", 0, 255, 255, function(val) Settings.FlashR = val end)
 UI_Elements.sliderFlashG = CreateSlider(flashDropdown, "Color: Green (G)", 0, 255, 255, function(val) Settings.FlashG = val end)
 UI_Elements.sliderFlashB = CreateSlider(flashDropdown, "Color: Blue (B)", 0, 255, 255, function(val) Settings.FlashB = val end)
+
 local fogDropdown = CreateDropdownSection(VisualPage, "Custom Fog")
 UI_Elements.toggleFog = CreateToggle(fogDropdown, "Enable Custom Fog", false, function(state)
     Settings.CustomFog = state
@@ -446,6 +458,7 @@ UI_Elements.sliderFogEnd = CreateSlider(fogDropdown, "Fog End (Плотност�
 UI_Elements.sliderFogR = CreateSlider(fogDropdown, "Color: Red (R)", 0, 255, 150, function(val) Settings.FogR = val end)
 UI_Elements.sliderFogG = CreateSlider(fogDropdown, "Color: Green (G)", 0, 255, 150, function(val) Settings.FogG = val end)
 UI_Elements.sliderFogB = CreateSlider(fogDropdown, "Color: Blue (B)", 0, 255, 150, function(val) Settings.FogB = val end)
+
 local skyboxDropdown = CreateDropdownSection(VisualPage, "Custom Skybox")
 local function GetTargetBrightness() return (Settings.SkyBright / 100) * 10 end
 local function GetTargetExposure() return (Settings.SkyExp / 100) * 2 - 1 end
@@ -466,6 +479,7 @@ local function ApplySkybox()
     end)
     _skyboxApplying = false
 end
+
 local function ResetSkybox()
     _skyboxApplying = true
     pcall(function()
@@ -477,6 +491,7 @@ local function ResetSkybox()
     end)
     _skyboxApplying = false
 end
+
 local _applyingPreset = false
 local function ApplyPreset(preset)
     Settings.SkyPreset = preset
@@ -528,6 +543,7 @@ local function ConnectSkyboxGuards()
     table.insert(skyboxGuardConnections, childAddedConn)
 end
 local function DisconnectSkyboxGuards() for _, conn in ipairs(skyboxGuardConnections) do if conn then pcall(function() conn:Disconnect() end) end end skyboxGuardConnections = {} end
+
 UI_Elements.toggleSky = CreateToggle(skyboxDropdown, "Enable Skybox", false, function(state) Settings.SkyEnabled = state if state then ConnectSkyboxGuards() ApplyPreset(Settings.SkyPreset) else DisconnectSkyboxGuards() ResetSkybox() end end)
 UI_Elements.skyBrightnessSlider = CreateSlider(skyboxDropdown, "Brightness", 0, 100, 50, function(v) Settings.SkyBright = v ApplySkybox() HandleSkySliderChange() end)
 UI_Elements.skyExposureSlider = CreateSlider(skyboxDropdown, "Exposure", 0, 100, 50, function(v) Settings.SkyExp = v ApplySkybox() HandleSkySliderChange() end)
@@ -538,6 +554,7 @@ UI_Elements.horRSlider = CreateSlider(skyboxDropdown, "Horizon Color Red (R)", 0
 UI_Elements.horGSlider = CreateSlider(skyboxDropdown, "Horizon Color Green (G)", 0, 255, 220, function(v) Settings.HorG = v ApplySkybox() HandleSkySliderChange() end)
 UI_Elements.horBSlider = CreateSlider(skyboxDropdown, "Horizon Color Blue (B)", 0, 255, 255, function(v) Settings.HorB = v ApplySkybox() HandleSkySliderChange() end)
 UI_Elements.presetDropdown = CreateDropdown(skyboxDropdown, "Skybox Preset", {"Default", "Day", "Sunset", "Night", "Space", "Purple", "Custom"}, "Default", function(selected) ApplyPreset(selected) end)
+
 local hudDropdown = CreateDropdownSection(VisualPage, "Essential HUD")
 local hudContainer, hudTitle, hudFPS, hudPing, hudKiller, hudUpdateConnection = nil, nil, nil, nil, nil, nil
 local function BuildEssentialHUD()
@@ -593,29 +610,14 @@ UI_Elements.toggleEnableHUD = CreateToggle(hudDropdown, "Enable HUD", false, fun
 UI_Elements.toggleShowFPS = CreateToggle(hudDropdown, "Show FPS", true, function(state) Settings.HUDFPS = state RefreshHUDVisibility() end)
 UI_Elements.toggleShowPing = CreateToggle(hudDropdown, "Show Ping", true, function(state) Settings.HUDPing = state RefreshHUDVisibility() end)
 UI_Elements.toggleShowKiller = CreateToggle(hudDropdown, "Show Killer Info", true, function(state) Settings.HUDKiller = state RefreshHUDVisibility() end)
--- [НОВОЕ] STAFF TAGS ПОМЕЩЕНЫ ВНИЗ СТРАНИЦЫ VISUAL
+
 UI_Elements.toggleStaffTags = CreateToggle(VisualPage, "Enable Staff Tags", false, function(state) Settings.StaffTags = state end)
--- [НОВОЕ] NO STOP EMOTE (БЕЗОПАСНАЯ ВЕРСИЯ, БЕЗ ХУКОВ)
--- UI_Elements.toggleNoStopEmote = CreateToggle(VisualPage, "No Stop Emote", false, function(state) Settings.NoStopEmote = state end)
 
-local noStopEmoteDisabledFrame = Instance.new("Frame", VisualPage)
-noStopEmoteDisabledFrame.Size = UDim2.new(1, 0, 0, 42)
-noStopEmoteDisabledFrame.BackgroundColor3 = BgElement
-Instance.new("UICorner", noStopEmoteDisabledFrame).CornerRadius = UDim.new(0, 8)
-local nseStroke = Instance.new("UIStroke", noStopEmoteDisabledFrame)
-table.insert(ThemeElements.DarkStrokes, nseStroke)
-
-local noStopEmoteDisabledLabel = Instance.new("TextLabel", noStopEmoteDisabledFrame)
-noStopEmoteDisabledLabel.Size = UDim2.new(1, 0, 1, 0)
-noStopEmoteDisabledLabel.BackgroundTransparency = 1
-noStopEmoteDisabledLabel.Text = "No Stop Emote: временно отключена"
-noStopEmoteDisabledLabel.TextColor3 = Color3.fromRGB(255, 75, 75) -- Красный цвет
-noStopEmoteDisabledLabel.Font = Enum.Font.GothamBold
-noStopEmoteDisabledLabel.TextSize = 13
 local aspectDropdown = CreateDropdownSection(MiscPage, "Aspect Ratio (Stretched)")
 UI_Elements.toggleStretch = CreateToggle(aspectDropdown, "Enable Stretch", false, function(state) Settings.Stretch = state end)
 UI_Elements.dropdownStretch = CreateDropdown(aspectDropdown, "Resolution", {"16:9 (Default)", "16:10", "4:3", "5:4", "3:4", "Custom"}, "16:9 (Default)", function(val) Settings.StretchPreset = val end)
 UI_Elements.sliderStretch = CreateSlider(aspectDropdown, "Custom Scale (%)", 30, 150, 100, function(val) Settings.StretchCustom = val end)
+
 local crosshairDropdown = CreateDropdownSection(MiscPage, "Custom Crosshair")
 UI_Elements.toggleCrosshair = CreateToggle(crosshairDropdown, "Enable Crosshair", false, function(state) Settings.Crosshair = state end)
 UI_Elements.sliderCHLength = CreateSlider(crosshairDropdown, "Crosshair Length", 2, 50, 10, function(val) Settings.CHLen = val end)
@@ -623,16 +625,20 @@ UI_Elements.sliderCHWidth = CreateSlider(crosshairDropdown, "Crosshair Thickness
 UI_Elements.sliderCHR = CreateSlider(crosshairDropdown, "Color: Red (R)", 0, 255, 0, function(val) Settings.CHR = val end)
 UI_Elements.sliderCHG = CreateSlider(crosshairDropdown, "Color: Green (G)", 0, 255, 255, function(val) Settings.CHG = val end)
 UI_Elements.sliderCHB = CreateSlider(crosshairDropdown, "Color: Blue (B)", 0, 255, 0, function(val) Settings.CHB = val end)
+
 local fovDropdown = CreateDropdownSection(MiscPage, "FOV Changer")
 UI_Elements.toggleFOVSet = CreateToggle(fovDropdown, "Enable FOV Changer", false, function(state) Settings.FOVEnabled = state end)
 UI_Elements.sliderSet = CreateSlider(fovDropdown, "FOV Changer Value", 70, 120, 70, function(val) Settings.FOV = val end)
+
 local speedhackDropdown = CreateDropdownSection(MiscPage, "Speedhack")
 UI_Elements.toggleSpeedSet = CreateToggle(speedhackDropdown, "Enable Speedhack", false, function(state) Settings.Speedhack = state end)
 UI_Elements.dropdownSpeedMode = CreateDropdown(speedhackDropdown, "Mode", {"Legit", "Rage"}, "Legit", function(val) Settings.SpeedMode = val end)
 UI_Elements.sliderSpeedSet = CreateSlider(speedhackDropdown, "Speed Value", 16, 150, 22, function(val) Settings.SpeedValue = val end)
+
 local jumphackDropdown = CreateDropdownSection(MiscPage, "Jumphack")
 UI_Elements.toggleJumphack = CreateToggle(jumphackDropdown, "Enable Jumphack", false, function(state) Settings.Jumphack = state end)
 UI_Elements.sliderJumpPower = CreateSlider(jumphackDropdown, "Jump Power", 30, 150, 50, function(val) Settings.JumpPower = val end)
+
 local function RestoreNoclipCollisions()
     if LocalPlayer.Character then for partId, originalState in pairs(noclipOriginalCollide) do if partId and partId.Parent then partId.CanCollide = originalState end end end noclipOriginalCollide = {}
 end
@@ -645,11 +651,13 @@ UI_Elements.toggleNoclip = CreateToggle(MiscPage, "Enable Noclip", false, functi
     if state then if not noclipConnection then noclipConnection = RunService.Stepped:Connect(function() if Settings.Noclip then ApplyNoclip() end end) end
     else if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end RestoreNoclipCollisions() end
 end)
+
 local presetToScale = { ["16:9 (Default)"] = 1.0, ["16:10"] = 0.9, ["4:3"] = 0.75, ["5:4"] = 0.703, ["3:4"] = 0.422, ["Custom"] = 1.0 }
 local function getStretchRatio()
     if Settings.StretchPreset == "Custom" then return Settings.StretchCustom / 100 end
     return presetToScale[Settings.StretchPreset] or 1.0
 end
+
 local configFolder = "EssentialConfigs"
 pcall(function() if makefolder and not isfolder(configFolder) then makefolder(configFolder) end end)
 local function GetConfigs()
@@ -660,6 +668,7 @@ local CurrentConfigName = ""
 local SetConfigNameText = CreateInput(ConfigPage, "Enter Config Name...", function(val) CurrentConfigName = val end)
 local StatusLabel = CreateLabel(ConfigPage, "Status: Ready")
 local ConfigListSection = CreateDropdownSection(ConfigPage, "Available Configs")
+
 local function RefreshConfigList()
     for _, child in ipairs(ConfigListSection:GetChildren()) do if child:IsA("TextButton") and child.Name == "CfgFileBtn" then child:Destroy() end end
     local files = GetConfigs()
@@ -670,6 +679,7 @@ local function RefreshConfigList()
     end
     ApplyTheme()
 end
+
 CreateButton(ConfigPage, "Save Config", false, function()
     if CurrentConfigName == "" or CurrentConfigName:match("^%s*$") then StatusLabel("Status: Error - Name cannot be empty!") return end
     local files = GetConfigs() local exists = false
@@ -677,6 +687,7 @@ CreateButton(ConfigPage, "Save Config", false, function()
     if not exists and #files >= 5 then StatusLabel("Status: Error - Limit reached (Max 5 configs)!") return end
     pcall(function() if writefile then writefile(configFolder .. "/" .. CurrentConfigName .. ".json", HttpService:JSONEncode(Settings)) StatusLabel("Status: Saved '" .. CurrentConfigName .. "'!") RefreshConfigList() end end)
 end)
+
 CreateButton(ConfigPage, "Load Config", false, function()
     if CurrentConfigName == "" then return end
     local path = configFolder .. "/" .. CurrentConfigName .. ".json"
@@ -709,7 +720,6 @@ CreateButton(ConfigPage, "Load Config", false, function()
                 if UI_Elements.sliderGateG then UI_Elements.sliderGateG(data.GateG or 255) end
                 if UI_Elements.sliderGateB then UI_Elements.sliderGateB(data.GateB or 255) end
                 if UI_Elements.toggleStaffTags then UI_Elements.toggleStaffTags(data.StaffTags or false) end
-                if UI_Elements.toggleNoStopEmote then UI_Elements.toggleNoStopEmote(data.NoStopEmote or false) end
                 if UI_Elements.toggleFOVSet then UI_Elements.toggleFOVSet(data.FOVEnabled or false) end
                 if UI_Elements.sliderSet then UI_Elements.sliderSet(data.FOV or 70) end
                 if UI_Elements.toggleSpeedSet then UI_Elements.toggleSpeedSet(data.Speedhack or false) end
@@ -764,6 +774,7 @@ CreateButton(ConfigPage, "Load Config", false, function()
         else StatusLabel("Status: Error - Config not found!") end
     end)
 end)
+
 CreateButton(ConfigPage, "Reload Configs", false, function() RefreshConfigList() StatusLabel("Status: Config list reloaded!") end)
 CreateButton(ConfigPage, "Delete Config", false, function()
     if CurrentConfigName == "" then return end
@@ -771,8 +782,10 @@ CreateButton(ConfigPage, "Delete Config", false, function()
     pcall(function() if delfile and isfile and isfile(path) then delfile(path) StatusLabel("Status: Deleted '" .. CurrentConfigName .. "'!") SetConfigNameText("") RefreshConfigList() else StatusLabel("Status: Error - Config not found!") end end)
 end)
 RefreshConfigList()
+
 local sep = Instance.new("Frame", ConfigPage) sep.Size = UDim2.new(1, 0, 0, 1) sep.BorderSizePixel = 0
 table.insert(ThemeElements.DarkStrokes, sep)
+
 -- ФУНКЦИЯ ДЛЯ ПОИСКА ОБЪЕКТОВ
 local function CheckObject(obj)
     if not obj or not obj.Parent then return end
@@ -793,121 +806,7 @@ task.spawn(function()
 end)
 table.insert(connections, workspace.DescendantAdded:Connect(CheckObject))
 
--- ==============================================
--- FIXED NO STOP EMOTE + LOBBY CHECK LOGIC
--- ==============================================
-local NoStopEmoteState = {
-    Track = nil,
-    TrackConn = nil,
-    TimePosition = 0,
-    Length = 0,
-    Resuming = false,
-    LastResume = 0,
-    ManualIgnoreUntil = 0
-}
-
-local function CleanupNoStopEmoteTrack()
-    if NoStopEmoteState.TrackConn then
-        pcall(function() NoStopEmoteState.TrackConn:Disconnect() end)
-        NoStopEmoteState.TrackConn = nil
-    end
-    NoStopEmoteState.Track = nil
-    NoStopEmoteState.TimePosition = 0
-    NoStopEmoteState.Length = 0
-    NoStopEmoteState.Resuming = false
-    NoStopEmoteState.LastResume = 0
-end
-
-local function IsEmoteTrack(track)
-    local ok, result = pcall(function()
-        return track ~= nil
-            and track.IsPlaying
-            and (track.Priority == Enum.AnimationPriority.Action or track.Priority == Enum.AnimationPriority.Core)
-    end)
-    return ok and result == true
-end
-
-local function HasOtherActionTrack(animator, ignoreTrack)
-    if not animator then return false end
-    local ok, tracks = pcall(function() return animator:GetPlayingAnimationTracks() end)
-    if not ok or not tracks then return false end
-    for _, track in ipairs(tracks) do
-        if track ~= ignoreTrack then
-            local ok2, isAction = pcall(function()
-                return track.IsPlaying and track.Priority == Enum.AnimationPriority.Action
-            end)
-            if ok2 and isAction then return true end
-        end
-    end
-    return false
-end
-
-local function TryResumeNoStopEmote(track)
-    if not Settings.NoStopEmote or not track or NoStopEmoteState.Resuming then return end
-    if os.clock() - NoStopEmoteState.LastResume < 0.15 then return end
-    if os.clock() < NoStopEmoteState.ManualIgnoreUntil then return end
-    
-    local okPlaying, playing = pcall(function() return track.IsPlaying end)
-    if okPlaying and playing then return end
-    
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildWhichIsA("Humanoid")
-    if not hum then return end
-    if hum.MoveDirection.Magnitude <= 0 then return end
-    
-    local animator = hum:FindFirstChildWhichIsA("Animator")
-    if HasOtherActionTrack(animator, track) then return end
-    
-    pcall(function()
-        NoStopEmoteState.Resuming = true
-        NoStopEmoteState.LastResume = os.clock()
-        track:Play(0, 1, 1)
-        track.TimePosition = NoStopEmoteState.TimePosition or 0
-        task.delay(0.15, function() NoStopEmoteState.Resuming = false end)
-    end)
-end
-
-local function AttachNoStopEmoteTrack(track)
-    if NoStopEmoteState.Track == track then return end
-    CleanupNoStopEmoteTrack()
-    
-    NoStopEmoteState.Track = track
-    pcall(function() NoStopEmoteState.TimePosition = track.TimePosition end)
-    pcall(function() NoStopEmoteState.Length = track.Length end)
-    
-    NoStopEmoteState.TrackConn = track.Stopped:Connect(function()
-        if not Settings.NoStopEmote or NoStopEmoteState.Resuming then return end
-        if os.clock() < NoStopEmoteState.ManualIgnoreUntil then return end
-        
-        local looped = false
-        pcall(function() looped = track.Looped end)
-        local finalTime = NoStopEmoteState.TimePosition or 0
-        
-        if not looped and NoStopEmoteState.Length > 0 and finalTime >= NoStopEmoteState.Length - 0.25 then
-            CleanupNoStopEmoteTrack()
-            return
-        end
-        
-        task.defer(function() TryResumeNoStopEmote(track) end)
-    end)
-end
-
-table.insert(connections, UserInputService.InputBegan:Connect(function(input)
-    if not Settings.NoStopEmote then return end
-    local moveKeys = {
-        Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
-        Enum.KeyCode.Up, Enum.KeyCode.Down, Enum.KeyCode.Left, Enum.KeyCode.Right,
-        Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift, Enum.KeyCode.Space
-    }
-    if input.UserInputType == Enum.UserInputType.Keyboard then
-        if not table.find(moveKeys, input.KeyCode) then
-            NoStopEmoteState.ManualIgnoreUntil = os.clock() + 0.35
-        end
-    elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
-        NoStopEmoteState.ManualIgnoreUntil = os.clock() + 0.35
-    end
-end))
-
+-- LOBBY CHECK LOGIC
 local LobbyCheckCache = { Last = 0, Value = false }
 local function IsInLobby()
     local now = os.clock()
@@ -938,7 +837,7 @@ end
 local function UnloadScript()
     for _, conn in ipairs(connections) do if conn then pcall(function() conn:Disconnect() end) end end
     if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
-    RestoreNoclipCollisions() DisconnectSkyboxGuards() ResetSkybox() TerminateEssentialHUD() CleanupNoStopEmoteTrack()
+    RestoreNoclipCollisions() DisconnectSkyboxGuards() ResetSkybox() TerminateEssentialHUD()
     Lighting.FogStart = DefaultLighting.FogStart Lighting.FogEnd = DefaultLighting.FogEnd
     if not Settings.SkyEnabled then Lighting.FogColor = DefaultLighting.FogColor end
     for _, p in pairs(Players:GetPlayers()) do 
@@ -963,9 +862,12 @@ local function UnloadScript()
     ScreenGui:Destroy()
 end
 CreateButton(ConfigPage, "Unload Script", true, UnloadScript)
+
 ApplyTheme()
+
 local wasLegitOverriding = false
 local lastLegitSpeedValue = 0
+
 -- ГЛАВНЫЙ ЦИКЛ СКРИПТА
 table.insert(connections, RunService.RenderStepped:Connect(function(delta)
     pcall(function()
@@ -1130,7 +1032,7 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
                 else table.remove(trackedHooks, i) end
             end
             
-            -- ВОРОТА
+            -- ВОРОТА (РАБОЧИЕ, БЕЗ ОГРАНИЧЕНИЯ ДИСТАНЦИИ)
             for i = #trackedGates, 1, -1 do
                 local gate = trackedGates[i]
                 if gate and gate.Parent then
@@ -1147,45 +1049,6 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
                         end
                     end
                 else table.remove(trackedGates, i) end
-            end
-        end
-        
-        -- FIXED NO STOP EMOTE
-        if Settings.NoStopEmote and LocalPlayer.Character then
-            local hum = LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
-            local animator = hum and hum:FindFirstChildWhichIsA("Animator")
-            if hum and animator then
-                local activeEmoteTrack = nil
-                pcall(function()
-                    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                        if IsEmoteTrack(track) then
-                            activeEmoteTrack = track
-                            break
-                        end
-                    end
-                end)
-                
-                if activeEmoteTrack then
-                    AttachNoStopEmoteTrack(activeEmoteTrack)
-                end
-                
-                local currentTrackPlaying = false
-                pcall(function()
-                    currentTrackPlaying = NoStopEmoteState.Track and NoStopEmoteState.Track.IsPlaying
-                end)
-                
-                if currentTrackPlaying then
-                    pcall(function()
-                        NoStopEmoteState.TimePosition = NoStopEmoteState.Track.TimePosition
-                    end)
-                    if hum.MoveDirection.Magnitude > 0 and hum.WalkSpeed <= 0 then
-                        hum.WalkSpeed = 16
-                    end
-                end
-            end
-        else
-            if NoStopEmoteState.Track or NoStopEmoteState.TrackConn then
-                CleanupNoStopEmoteTrack()
             end
         end
         
@@ -1266,4 +1129,4 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
         end
     end)
 end))
-print("[Essential Recode]: Fixed Build + Safe No Stop Emote + Lobby Check Loaded!")
+print("[Essential Recode]: Rollback Version (Gate ESP Fixed & No Stop Emote Removed) Loaded!")
