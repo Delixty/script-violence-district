@@ -1,5 +1,5 @@
--- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR + GATE ESP + NAME ESP
--- [FIXED] Gate ESP Revived, NoStopEmote Removed, Lobby ESP Auto-Hide, Generator Labels Removed, Staff Tags Removed
+-- Essential GUI - Stable + NOCLIP + STRETCHED RES + ESSENTIAL HUD + HOOK ESP + CUSTOM FOG + CROSSHAIR + GATE ESP + NAME ESP + STAFF TAGS
+-- [FINAL] Low Graphics Added, NoStopEmote Removed, Gen Labels Removed, Lobby Check
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -14,11 +14,8 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 15)
 local connections = {}
 local UI_Elements = {}
 local SearchableElements = {}
-
--- Таблица трекинга для динамической смены цветов интерфейса
 local ThemeElements = { Gradients = {}, Texts = {}, MainStrokes = {}, DarkStrokes = {}, Scrollbars = {} }
 
--- Настройки по умолчанию
 local Settings = {
     ManiacESP = false, ManiacR = 239, ManiacG = 68, ManiacB = 68,
     SurvivorESP = false, SurvivorR = 34, SurvivorG = 197, SurvivorB = 94,
@@ -37,8 +34,19 @@ local Settings = {
     SkyEnabled = false, SkyBright = 50, SkyExp = 50, SkyR = 100, SkyG = 160, SkyB = 255,
     HorR = 200, HorG = 220, HorB = 255, SkyPreset = "Default",
     HUDEnabled = false, HUDFPS = true, HUDPing = true, HUDKiller = true,
-    -- UI Settings
+    StaffTags = false,
+    
+    -- Low Graphics Settings
+    LowGraphics = false,
+    TextureQuality = "Balanced", -- Performance, Balanced, Quality
+    
     DeviceMode = "PC", AccentR = 168, AccentG = 85, AccentB = 247
+}
+
+local StaffList = {
+    ["MilkDark1999"] = "Dev",
+    ["TimmyMartyn"] = "Tester",
+    ["xbsjbjdb"] = "Tester"
 }
 
 local function ApplyTheme()
@@ -82,9 +90,9 @@ local DefaultLighting = {
     Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient,
     ColorShift_Top = Lighting.ColorShift_Top, ColorShift_Bottom = Lighting.ColorShift_Bottom,
     ClockTime = Lighting.ClockTime, FogColor = Lighting.FogColor,
-    FogStart = Lighting.FogStart, FogEnd = Lighting.FogEnd
+    FogStart = Lighting.FogStart, FogEnd = Lighting.FogEnd,
+    GlobalShadows = Lighting.GlobalShadows, Technology = Lighting.Technology
 }
-
 local _skyboxApplying = false
 local skyboxGuardConnections = {}
 local SkySettings = { StarCount = 1000, SunAngularSize = 11, MoonAngularSize = 11, CelestialBodiesShown = true }
@@ -94,7 +102,119 @@ local trackedHooks = {}
 local trackedGates = {}
 local MAX_ESP_DISTANCE = 100
 
--- Цвета UI
+-- ==============================================
+-- LOW GRAPHICS SYSTEM
+-- ==============================================
+local LowGraphicsState = {
+    Applied = false,
+    SavedQuality = nil,
+    SavedGlobalShadows = nil,
+    SavedTechnology = nil,
+    PostEffects = {},
+    ModifiedParts = setmetatable({}, { __mode = "k" })
+}
+
+pcall(function() LowGraphicsState.SavedQuality = settings().Rendering.QualityLevel end)
+pcall(function() LowGraphicsState.SavedTechnology = Lighting.Technology end)
+LowGraphicsState.SavedGlobalShadows = Lighting.GlobalShadows
+
+local function GetTextureProfile(mode)
+    if mode == "Performance" then
+        return { Quality = Enum.QualityLevel.Level01, MeshDetail = "Level01", LOD = 4, Shadows = false, Tech = Enum.Technology.Legacy }
+    elseif mode == "Quality" then
+        return { Quality = Enum.QualityLevel.Level05, MeshDetail = "Level03", LOD = 0, Shadows = true, Tech = Enum.Technology.ShadowMap }
+    else -- Balanced
+        return { Quality = Enum.QualityLevel.Level03, MeshDetail = "Level02", LOD = 2, Shadows = false, Tech = Enum.Technology.Legacy }
+    end
+end
+
+local function ApplyLowTextureToObject(obj)
+    if not Settings.LowGraphics then return end
+    if not obj or not obj.Parent then return end
+    
+    if obj:IsA("MeshPart") then
+        local profile = GetTextureProfile(Settings.TextureQuality)
+        local ok = pcall(function() obj.TextureLODBias = profile.LOD end)
+        if ok then LowGraphicsState.ModifiedParts[obj] = true end
+        pcall(function() obj.RenderFidelity = Enum.RenderFidelity.Performance end)
+    end
+end
+
+local function DisablePostEffects(parent)
+    if not parent then return end
+    for _, obj in ipairs(parent:GetDescendants()) do
+        if obj:IsA("PostEffect") then
+            if LowGraphicsState.PostEffects[obj] == nil then LowGraphicsState.PostEffects[obj] = obj.Enabled end
+            pcall(function() obj.Enabled = false end)
+        end
+    end
+end
+
+local function ApplyLowGraphics()
+    if not Settings.LowGraphics then return end
+    local profile = GetTextureProfile(Settings.TextureQuality)
+    
+    pcall(function() settings().Rendering.QualityLevel = profile.Quality end)
+    pcall(function() settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel[profile.MeshDetail] end)
+    pcall(function() settings().Rendering.TextureQuality = Enum.TextureQuality.Low end)
+    
+    pcall(function() Lighting.GlobalShadows = profile.Shadows end)
+    pcall(function() Lighting.Technology = profile.Tech end)
+    
+    DisablePostEffects(Lighting)
+    DisablePostEffects(workspace.CurrentCamera)
+    
+    task.spawn(function()
+        local objs = workspace:GetDescendants()
+        for i = 1, #objs do
+            ApplyLowTextureToObject(objs[i])
+            if i % 1500 == 0 then task.wait() end
+        end
+    end)
+    
+    LowGraphicsState.Applied = true
+end
+
+local function RestoreLowGraphics()
+    if not LowGraphicsState.Applied then return end
+    
+    pcall(function() settings().Rendering.QualityLevel = LowGraphicsState.SavedQuality or Enum.QualityLevel.Automatic end)
+    pcall(function() settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04 end)
+    pcall(function() settings().Rendering.TextureQuality = Enum.TextureQuality.Automatic end)
+    
+    pcall(function() Lighting.GlobalShadows = LowGraphicsState.SavedGlobalShadows end)
+    if LowGraphicsState.SavedTechnology then pcall(function() Lighting.Technology = LowGraphicsState.SavedTechnology end) end
+    
+    for obj, state in pairs(LowGraphicsState.PostEffects) do pcall(function() obj.Enabled = state end) end
+    LowGraphicsState.PostEffects = {}
+    
+    for part in pairs(LowGraphicsState.ModifiedParts) do
+        pcall(function() part.TextureLODBias = 0 end)
+        pcall(function() part.RenderFidelity = Enum.RenderFidelity.Automatic end)
+    end
+    LowGraphicsState.ModifiedParts = setmetatable({}, { __mode = "k" })
+    
+    LowGraphicsState.Applied = false
+end
+
+local function RefreshLowGraphics()
+    if Settings.LowGraphics then ApplyLowGraphics() else RestoreLowGraphics() end
+end
+
+table.insert(connections, workspace.DescendantAdded:Connect(function(obj)
+    if Settings.LowGraphics then ApplyLowTextureToObject(obj) end
+end))
+
+table.insert(connections, Lighting.ChildAdded:Connect(function(obj)
+    if Settings.LowGraphics and obj:IsA("PostEffect") then
+        if LowGraphicsState.PostEffects[obj] == nil then LowGraphicsState.PostEffects[obj] = obj.Enabled end
+        pcall(function() obj.Enabled = false end)
+    end
+end))
+
+-- ==============================================
+-- UI SETUP
+-- ==============================================
 local BgMain = Color3.fromRGB(10, 10, 10)
 local BgHeader = Color3.fromRGB(16, 16, 16)
 local BgSidebar = Color3.fromRGB(14, 14, 14)
@@ -108,7 +228,6 @@ ScreenGui.Name = "EssentialUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
 local successParent = false
 if CoreGui then
     pcall(function() for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "EssentialUI" then v:Destroy() end end ScreenGui.Parent = CoreGui successParent = true end)
@@ -126,9 +245,7 @@ MainFrame.AnchorPoint = Vector2.new(0.5, 1) MainFrame.Position = UDim2.new(0.5, 
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
 local MainStroke = Instance.new("UIStroke", MainFrame) MainStroke.Thickness = 1.5
 table.insert(ThemeElements.MainStrokes, MainStroke)
-
-local MainUIScale = Instance.new("UIScale", MainFrame)
-MainUIScale.Scale = 1
+local MainUIScale = Instance.new("UIScale", MainFrame) MainUIScale.Scale = 1
 
 local Header = Instance.new("Frame", MainFrame) Header.Size = UDim2.new(1, 0, 0, 45) Header.BackgroundColor3 = BgHeader Header.BorderSizePixel = 0 Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
 local HeaderBottom = Instance.new("Frame", Header) HeaderBottom.Size = UDim2.new(1, 0, 0, 12) HeaderBottom.Position = UDim2.new(0, 0, 1, -12) HeaderBottom.BackgroundColor3 = BgHeader HeaderBottom.BorderSizePixel = 0 HeaderBottom.Visible = false
@@ -143,10 +260,10 @@ Title.Size = UDim2.new(1, 0, 1, 0) Title.Position = UDim2.new(0, 0, 0, 0) Title.
 local TitleGrad = Instance.new("UIGradient", Title) table.insert(ThemeElements.Gradients, TitleGrad)
 
 local Body = Instance.new("Frame", MainFrame) Body.Size = UDim2.new(1, 0, 1, -45) Body.Position = UDim2.new(0, 0, 0, 45) Body.BackgroundTransparency = 1 Body.Visible = false
+
 local SettingsOverlay = Instance.new("ScrollingFrame", Body)
 SettingsOverlay.Name = "SettingsOverlay" SettingsOverlay.Size = UDim2.new(1, 0, 1, 0) SettingsOverlay.BackgroundTransparency = 1 SettingsOverlay.BorderSizePixel = 0 SettingsOverlay.ScrollBarThickness = 4 SettingsOverlay.Visible = false SettingsOverlay.ZIndex = 2
 table.insert(ThemeElements.Scrollbars, SettingsOverlay)
-
 local soLayout = Instance.new("UIListLayout", SettingsOverlay) soLayout.SortOrder = Enum.SortOrder.LayoutOrder soLayout.Padding = UDim.new(0, 10)
 local soPadding = Instance.new("UIPadding", SettingsOverlay) soPadding.PaddingTop = UDim.new(0, 15) soPadding.PaddingLeft = UDim.new(0, 15) soPadding.PaddingRight = UDim.new(0, 15) soPadding.PaddingBottom = UDim.new(0, 15)
 soLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() SettingsOverlay.CanvasSize = UDim2.new(0, 0, 0, soLayout.AbsoluteContentSize.Y + 30) end)
@@ -195,7 +312,6 @@ Header.InputEnded:Connect(function(input)
         if dragStartPos and (input.Position - dragStartPos).Magnitude < 15 and (os.clock() - touchStartTime) < 0.3 then ToggleMenu() end
     end
 end)
-
 table.insert(connections, UserInputService.InputChanged:Connect(function(input)
     if input == dragInput and dragging and Body.Visible then
         local delta = input.Position - dragStartPos
@@ -235,7 +351,6 @@ TabListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 local SearchFrame = Instance.new("Frame", Topbar) SearchFrame.AnchorPoint = Vector2.new(1, 0) SearchFrame.Position = UDim2.new(1, -10, 0, 8) SearchFrame.Size = UDim2.new(0, 150, 0, 26) SearchFrame.BackgroundColor3 = BgDark SearchFrame.BorderSizePixel = 0 SearchFrame.ZIndex = 5 Instance.new("UICorner", SearchFrame).CornerRadius = UDim.new(0, 6)
 local SearchStrokeObj = Instance.new("UIStroke", SearchFrame) SearchStrokeObj.Thickness = 1 SearchStrokeObj.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 table.insert(ThemeElements.DarkStrokes, SearchStrokeObj)
-
 local SearchInput = Instance.new("TextBox", SearchFrame) SearchInput.Size = UDim2.new(1, -20, 1, 0) SearchInput.Position = UDim2.new(0, 10, 0, 0) SearchInput.BackgroundTransparency = 1 SearchInput.Text = "" SearchInput.PlaceholderText = "Search..." SearchInput.TextColor3 = TextColor SearchInput.PlaceholderColor3 = TextMuted SearchInput.TextSize = 12 SearchInput.Font = Enum.Font.Gotham SearchInput.TextXAlignment = Enum.TextXAlignment.Left SearchInput.ClearTextOnFocus = false SearchInput.ZIndex = 6
 SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
     local query = string.lower(SearchInput.Text)
@@ -245,8 +360,8 @@ SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 local ContentPadding = Instance.new("UIPadding", ContentArea) ContentPadding.PaddingTop = UDim.new(0, 12) ContentPadding.PaddingLeft = UDim.new(0, 15) ContentPadding.PaddingRight = UDim.new(0, 15) ContentPadding.PaddingBottom = UDim.new(0, 12)
-local tabs = {}
 
+local tabs = {}
 local function ShouldBeSearchable(obj)
     local current = obj
     while current and current ~= game do
@@ -377,15 +492,7 @@ local function CreateDropdown(parent, text, options, default, callback)
     local function setValue(val) currentValue = val selector.Text = "   " .. tostring(val) callback(val) end
     for _, opt in ipairs(options) do
         local optBtn = Instance.new("TextButton", optionHolder) optBtn.Size = UDim2.new(1, 0, 0, 26) optBtn.BackgroundColor3 = BgDark optBtn.Text = tostring(opt) optBtn.TextColor3 = TextColor optBtn.TextSize = 12 optBtn.Font = Enum.Font.Gotham Instance.new("UICorner", optBtn).CornerRadius = UDim.new(0, 4)
-        
-        -- DYNAMIC HOVER COLOR
-        optBtn.MouseEnter:Connect(function() 
-            local base = Color3.fromRGB(Settings.AccentR, Settings.AccentG, Settings.AccentB)
-            local h, s, v = Color3.toHSV(base)
-            local hoverColor = Color3.fromHSV(h, s, math.clamp(v - 0.5, 0.1, 1))
-            TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = hoverColor}):Play() 
-        end)
-        
+        optBtn.MouseEnter:Connect(function() TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 30, 90)}):Play() end)
         optBtn.MouseLeave:Connect(function() TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = BgDark}):Play() end)
         optBtn.MouseButton1Click:Connect(function() setValue(opt) isOpen = false arrow.Text = "▼" TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42)}):Play() end)
     end
@@ -394,7 +501,7 @@ local function CreateDropdown(parent, text, options, default, callback)
 end
 
 -- ==============================================
--- СТРАНИЦА НАСТРОЕК UI (Оверлей)
+-- SETTINGS OVERLAY
 -- ==============================================
 CreateLabel(SettingsOverlay, "UI customization")
 UI_Elements.dropdownDeviceMode = CreateDropdown(SettingsOverlay, "Device Mode", {"PC", "Phone"}, Settings.DeviceMode, function(val)
@@ -407,10 +514,12 @@ UI_Elements.sliderAccR = CreateSlider(SettingsOverlay, "Accent Red (R)", 0, 255,
 UI_Elements.sliderAccG = CreateSlider(SettingsOverlay, "Accent Green (G)", 0, 255, Settings.AccentG, function(val) Settings.AccentG = val ApplyTheme() end)
 UI_Elements.sliderAccB = CreateSlider(SettingsOverlay, "Accent Blue (B)", 0, 255, Settings.AccentB, function(val) Settings.AccentB = val ApplyTheme() end)
 
+-- TABS
 local MainPage, MainBtn, MainBg, MainGrad, MainLbl = CreateTab("Main")
 local VisualPage, VisualBtn = CreateTab("Visual")
 local MiscPage, MiscBtn = CreateTab("Misc")
 local ConfigPage, ConfigBtn = CreateTab("Config")
+
 MainBg.BackgroundTransparency = 0 MainLbl.TextColor3 = Color3.fromRGB(255, 255, 255) MainGrad.Enabled = true MainPage.Visible = true
 
 local function isPlayerManiac(player)
@@ -427,6 +536,7 @@ local function isPlayerManiac(player)
     if hum and hum.MaxHealth > 100 and hum.MaxHealth < 9999 then return true end return false
 end
 
+-- MAIN PAGE ESP
 local maniacDropdown = CreateDropdownSection(MainPage, "Maniac ESP")
 UI_Elements.toggleManiac = CreateToggle(maniacDropdown, "Enable Maniac ESP", false, function(state) Settings.ManiacESP = state end)
 UI_Elements.sliderMR = CreateSlider(maniacDropdown, "Color: Red (R)", 0, 255, 239, function(val) Settings.ManiacR = val end)
@@ -462,6 +572,19 @@ UI_Elements.toggleGate = CreateToggle(gateDropdown, "Enable Gate ESP", false, fu
 UI_Elements.sliderGateR = CreateSlider(gateDropdown, "Color: Red (R)", 0, 255, 0, function(val) Settings.GateR = val end)
 UI_Elements.sliderGateG = CreateSlider(gateDropdown, "Color: Green (G)", 0, 255, 255, function(val) Settings.GateG = val end)
 UI_Elements.sliderGateB = CreateSlider(gateDropdown, "Color: Blue (B)", 0, 255, 255, function(val) Settings.GateB = val end)
+
+-- VISUAL PAGE
+-- LOW GRAPHICS SECTION (ГАРМОШКА)
+local lowGraphicsDropdown = CreateDropdownSection(VisualPage, "Low Graphics")
+UI_Elements.toggleLowGraphics = CreateToggle(lowGraphicsDropdown, "Enable Low Graphics", false, function(state)
+    Settings.LowGraphics = state
+    RefreshLowGraphics()
+end)
+UI_Elements.dropdownTextureQuality = CreateDropdown(lowGraphicsDropdown, "Texture Quality", {"Performance", "Balanced", "Quality"}, "Balanced", function(val)
+    Settings.TextureQuality = val
+    if Settings.LowGraphics then RefreshLowGraphics() end
+end)
+CreateLabel(lowGraphicsDropdown, "Optimizes textures & render for weak PC")
 
 local flashDropdown = CreateDropdownSection(VisualPage, "Custom Flashlight")
 UI_Elements.toggleFlashlight = CreateToggle(flashDropdown, "Enable Flashlight", false, function(state) Settings.Flashlight = state end)
@@ -507,7 +630,6 @@ local function ApplySkybox()
     end)
     _skyboxApplying = false
 end
-
 local function ResetSkybox()
     _skyboxApplying = true
     pcall(function()
@@ -519,7 +641,6 @@ local function ResetSkybox()
     end)
     _skyboxApplying = false
 end
-
 local _applyingPreset = false
 local function ApplyPreset(preset)
     Settings.SkyPreset = preset
@@ -571,7 +692,6 @@ local function ConnectSkyboxGuards()
     table.insert(skyboxGuardConnections, childAddedConn)
 end
 local function DisconnectSkyboxGuards() for _, conn in ipairs(skyboxGuardConnections) do if conn then pcall(function() conn:Disconnect() end) end end skyboxGuardConnections = {} end
-
 UI_Elements.toggleSky = CreateToggle(skyboxDropdown, "Enable Skybox", false, function(state) Settings.SkyEnabled = state if state then ConnectSkyboxGuards() ApplyPreset(Settings.SkyPreset) else DisconnectSkyboxGuards() ResetSkybox() end end)
 UI_Elements.skyBrightnessSlider = CreateSlider(skyboxDropdown, "Brightness", 0, 100, 50, function(v) Settings.SkyBright = v ApplySkybox() HandleSkySliderChange() end)
 UI_Elements.skyExposureSlider = CreateSlider(skyboxDropdown, "Exposure", 0, 100, 50, function(v) Settings.SkyExp = v ApplySkybox() HandleSkySliderChange() end)
@@ -639,6 +759,9 @@ UI_Elements.toggleShowFPS = CreateToggle(hudDropdown, "Show FPS", true, function
 UI_Elements.toggleShowPing = CreateToggle(hudDropdown, "Show Ping", true, function(state) Settings.HUDPing = state RefreshHUDVisibility() end)
 UI_Elements.toggleShowKiller = CreateToggle(hudDropdown, "Show Killer Info", true, function(state) Settings.HUDKiller = state RefreshHUDVisibility() end)
 
+UI_Elements.toggleStaffTags = CreateToggle(VisualPage, "Enable Staff Tags", false, function(state) Settings.StaffTags = state end)
+
+-- MISC PAGE
 local aspectDropdown = CreateDropdownSection(MiscPage, "Aspect Ratio (Stretched)")
 UI_Elements.toggleStretch = CreateToggle(aspectDropdown, "Enable Stretch", false, function(state) Settings.Stretch = state end)
 UI_Elements.dropdownStretch = CreateDropdown(aspectDropdown, "Resolution", {"16:9 (Default)", "16:10", "4:3", "5:4", "3:4", "Custom"}, "16:9 (Default)", function(val) Settings.StretchPreset = val end)
@@ -684,6 +807,7 @@ local function getStretchRatio()
     return presetToScale[Settings.StretchPreset] or 1.0
 end
 
+-- CONFIG SYSTEM
 local configFolder = "EssentialConfigs"
 pcall(function() if makefolder and not isfolder(configFolder) then makefolder(configFolder) end end)
 local function GetConfigs()
@@ -694,7 +818,6 @@ local CurrentConfigName = ""
 local SetConfigNameText = CreateInput(ConfigPage, "Enter Config Name...", function(val) CurrentConfigName = val end)
 local StatusLabel = CreateLabel(ConfigPage, "Status: Ready")
 local ConfigListSection = CreateDropdownSection(ConfigPage, "Available Configs")
-
 local function RefreshConfigList()
     for _, child in ipairs(ConfigListSection:GetChildren()) do if child:IsA("TextButton") and child.Name == "CfgFileBtn" then child:Destroy() end end
     local files = GetConfigs()
@@ -705,7 +828,6 @@ local function RefreshConfigList()
     end
     ApplyTheme()
 end
-
 CreateButton(ConfigPage, "Save Config", false, function()
     if CurrentConfigName == "" or CurrentConfigName:match("^%s*$") then StatusLabel("Status: Error - Name cannot be empty!") return end
     local files = GetConfigs() local exists = false
@@ -713,7 +835,6 @@ CreateButton(ConfigPage, "Save Config", false, function()
     if not exists and #files >= 5 then StatusLabel("Status: Error - Limit reached (Max 5 configs)!") return end
     pcall(function() if writefile then writefile(configFolder .. "/" .. CurrentConfigName .. ".json", HttpService:JSONEncode(Settings)) StatusLabel("Status: Saved '" .. CurrentConfigName .. "'!") RefreshConfigList() end end)
 end)
-
 CreateButton(ConfigPage, "Load Config", false, function()
     if CurrentConfigName == "" then return end
     local path = configFolder .. "/" .. CurrentConfigName .. ".json"
@@ -745,6 +866,12 @@ CreateButton(ConfigPage, "Load Config", false, function()
                 if UI_Elements.sliderGateR then UI_Elements.sliderGateR(data.GateR or 0) end
                 if UI_Elements.sliderGateG then UI_Elements.sliderGateG(data.GateG or 255) end
                 if UI_Elements.sliderGateB then UI_Elements.sliderGateB(data.GateB or 255) end
+                if UI_Elements.toggleStaffTags then UI_Elements.toggleStaffTags(data.StaffTags or false) end
+                
+                -- Low Graphics Load
+                if UI_Elements.toggleLowGraphics then UI_Elements.toggleLowGraphics(data.LowGraphics or false) end
+                if UI_Elements.dropdownTextureQuality then UI_Elements.dropdownTextureQuality(data.TextureQuality or "Balanced") end
+                
                 if UI_Elements.toggleFOVSet then UI_Elements.toggleFOVSet(data.FOVEnabled or false) end
                 if UI_Elements.sliderSet then UI_Elements.sliderSet(data.FOV or 70) end
                 if UI_Elements.toggleSpeedSet then UI_Elements.toggleSpeedSet(data.Speedhack or false) end
@@ -799,7 +926,6 @@ CreateButton(ConfigPage, "Load Config", false, function()
         else StatusLabel("Status: Error - Config not found!") end
     end)
 end)
-
 CreateButton(ConfigPage, "Reload Configs", false, function() RefreshConfigList() StatusLabel("Status: Config list reloaded!") end)
 CreateButton(ConfigPage, "Delete Config", false, function()
     if CurrentConfigName == "" then return end
@@ -807,11 +933,10 @@ CreateButton(ConfigPage, "Delete Config", false, function()
     pcall(function() if delfile and isfile and isfile(path) then delfile(path) StatusLabel("Status: Deleted '" .. CurrentConfigName .. "'!") SetConfigNameText("") RefreshConfigList() else StatusLabel("Status: Error - Config not found!") end end)
 end)
 RefreshConfigList()
-
 local sep = Instance.new("Frame", ConfigPage) sep.Size = UDim2.new(1, 0, 0, 1) sep.BorderSizePixel = 0
 table.insert(ThemeElements.DarkStrokes, sep)
 
--- ФУНКЦИЯ ДЛЯ ПОИСКА ОБЪЕКТОВ
+-- OBJECT TRACKING
 local function CheckObject(obj)
     if not obj or not obj.Parent then return end
     local name = string.lower(obj.Name)
@@ -831,38 +956,11 @@ task.spawn(function()
 end)
 table.insert(connections, workspace.DescendantAdded:Connect(CheckObject))
 
--- LOBBY CHECK LOGIC
-local LobbyCheckCache = { Last = 0, Value = false }
-local function IsInLobby()
-    local now = os.clock()
-    if now - LobbyCheckCache.Last < 0.2 then return LobbyCheckCache.Value end
-    
-    local lobby = false
-    pcall(function()
-        local team = LocalPlayer.Team
-        if team then
-            local teamName = string.lower(team.Name)
-            if string.find(teamName, "lobby") or string.find(teamName, "menu") or string.find(teamName, "spectat") then
-                lobby = true
-            end
-        end
-        if LocalPlayer:GetAttribute("InLobby") == true or LocalPlayer:GetAttribute("Lobby") == true then lobby = true end
-        local state = LocalPlayer:GetAttribute("GameState") or LocalPlayer:GetAttribute("MatchState") or LocalPlayer:GetAttribute("RoundState") or LocalPlayer:GetAttribute("State")
-        if state ~= nil then
-            local stateText = string.lower(tostring(state))
-            if string.find(stateText, "lobby") or string.find(stateText, "menu") or string.find(stateText, "intermission") then lobby = true end
-        end
-    end)
-    
-    LobbyCheckCache.Last = now
-    LobbyCheckCache.Value = lobby
-    return lobby
-end
-
+-- UNLOAD
 local function UnloadScript()
     for _, conn in ipairs(connections) do if conn then pcall(function() conn:Disconnect() end) end end
     if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
-    RestoreNoclipCollisions() DisconnectSkyboxGuards() ResetSkybox() TerminateEssentialHUD()
+    RestoreNoclipCollisions() DisconnectSkyboxGuards() ResetSkybox() TerminateEssentialHUD() RestoreLowGraphics()
     Lighting.FogStart = DefaultLighting.FogStart Lighting.FogEnd = DefaultLighting.FogEnd
     if not Settings.SkyEnabled then Lighting.FogColor = DefaultLighting.FogColor end
     for _, p in pairs(Players:GetPlayers()) do 
@@ -887,13 +985,12 @@ local function UnloadScript()
     ScreenGui:Destroy()
 end
 CreateButton(ConfigPage, "Unload Script", true, UnloadScript)
-
 ApplyTheme()
 
+-- MAIN LOOP
 local wasLegitOverriding = false
 local lastLegitSpeedValue = 0
 
--- ГЛАВНЫЙ ЦИКЛ СКРИПТА
 table.insert(connections, RunService.RenderStepped:Connect(function(delta)
     pcall(function()
         if workspace.CurrentCamera then
@@ -967,13 +1064,22 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
             else if currentLight then currentLight:Destroy() currentLight = nil end end
         end
         
-        -- ESP ОБЪЕКТОВ + LOBBY CHECK
-        local espBlocked = IsInLobby()
+        -- ESP OBJECTS + LOBBY CHECK
         local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local espBlocked = false
+        pcall(function()
+            local team = LocalPlayer.Team
+            if team then
+                local tn = string.lower(team.Name)
+                if string.find(tn, "lobby") or string.find(tn, "menu") or string.find(tn, "spectat") then espBlocked = true end
+            end
+            if LocalPlayer:GetAttribute("InLobby") == true then espBlocked = true end
+        end)
+        
         if myRoot then
             local myPos = myRoot.Position
             
-            -- ГЕНЕРАТОРЫ (БЕЗ НАДПИСЕЙ)
+            -- GENERATORS (NO LABELS)
             for i = #trackedGenerators, 1, -1 do
                 local gen = trackedGenerators[i]
                 if gen and gen.Parent then
@@ -1011,7 +1117,7 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
                 else table.remove(trackedGenerators, i) end
             end
             
-            -- ПАЛЛЕТКИ
+            -- PALLETS
             for i = #trackedPallets, 1, -1 do
                 local pallet = trackedPallets[i]
                 if pallet and pallet.Parent then
@@ -1031,7 +1137,7 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
                 else table.remove(trackedPallets, i) end
             end
             
-            -- КРЮКИ
+            -- HOOKS
             for i = #trackedHooks, 1, -1 do
                 local hookObj = trackedHooks[i]
                 if hookObj and hookObj.Parent then
@@ -1057,7 +1163,7 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
                 else table.remove(trackedHooks, i) end
             end
             
-            -- ВОРОТА (РАБОЧИЕ, БЕЗ ОГРАНИЧЕНИЯ ДИСТАНЦИИ)
+            -- GATES
             for i = #trackedGates, 1, -1 do
                 local gate = trackedGates[i]
                 if gate and gate.Parent then
@@ -1076,88 +1182,84 @@ table.insert(connections, RunService.RenderStepped:Connect(function(delta)
                 else table.remove(trackedGates, i) end
             end
         end
-
-        -- ESP ИГРОКОВ (Здесь полностью вырезаны Staff Tags)
-        if not espBlocked and myRoot then
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local targetRoot = player.Character.HumanoidRootPart
-                    local dist = (myRoot.Position - targetRoot.Position).Magnitude
-                    local isManiac = isPlayerManiac(player)
-                    
-                    local shouldHighlight = false
-                    local highlightColor = Color3.new(1, 1, 1)
-                    
-                    if isManiac and Settings.ManiacESP then
-                        shouldHighlight = true
+        
+        -- PLAYER ESP + STAFF TAGS
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local isManiac = isPlayerManiac(player)
+                local inLobby = false
+                if player.Team and (string.find(string.lower(player.Team.Name), "lobby") or string.find(string.lower(player.Team.Name), "menu") or string.find(string.lower(player.Team.Name), "spectat")) then
+                    inLobby = true
+                end
+                local hum = player.Character:FindFirstChild("Humanoid")
+                if hum and hum.Health <= 0 then inLobby = true end
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and myRoot and (hrp.Position - myRoot.Position).Magnitude > 3000 then
+                    inLobby = true
+                end
+                
+                local highlight = player.Character:FindFirstChild("EssentialESP")
+                local nameTag = player.Character:FindFirstChild("EssentialNameTag")
+                local shouldHighlight = false 
+                local highlightColor = Color3.fromRGB(255, 255, 255)
+                
+                if not espBlocked and not inLobby then
+                    if isManiac and Settings.ManiacESP then 
+                        shouldHighlight = true 
                         highlightColor = Color3.fromRGB(Settings.ManiacR, Settings.ManiacG, Settings.ManiacB)
-                    elseif not isManiac and Settings.SurvivorESP then
-                        shouldHighlight = true
-                        highlightColor = Color3.fromRGB(Settings.SurvivorR, Settings.SurvivorG, Settings.SurvivorB)
-                    end
-                    
-                    local highlight = player.Character:FindFirstChild("EssentialESP")
-                    local nameTag = player.Character:FindFirstChild("EssentialNameTag")
-                    
-                    if shouldHighlight then
-                        if not highlight then
-                            highlight = Instance.new("Highlight")
-                            highlight.Name = "EssentialESP"
-                            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-                            highlight.FillTransparency = 0.5
-                            highlight.OutlineTransparency = 0.2
-                            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                            highlight.Parent = player.Character
-                        end
-                        highlight.FillColor = highlightColor
-                        
-                        if not nameTag then
-                            nameTag = Instance.new("BillboardGui")
-                            nameTag.Name = "EssentialNameTag"
-                            nameTag.Size = UDim2.new(0, 300, 0, 50)
-                            nameTag.StudsOffset = Vector3.new(0, 3, 0)
-                            nameTag.AlwaysOnTop = true
-                            
-                            local textLabel = Instance.new("TextLabel")
-                            textLabel.Name = "NameText"
-                            textLabel.Size = UDim2.new(1, 0, 1, 0)
-                            textLabel.BackgroundTransparency = 1
-                            textLabel.Font = Enum.Font.GothamBold
-                            textLabel.TextSize = 14
-                            textLabel.TextStrokeTransparency = 0.2
-                            textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-                            textLabel.RichText = true
-                            textLabel.Parent = nameTag
-                            
-                            local head = player.Character:FindFirstChild("Head") or targetRoot
-                            if head then
-                                nameTag.Adornee = head
-                                nameTag.Parent = player.Character
-                            end
-                        end
-                        
-                        -- Просто пишем чистое имя и дистанцию
-                        if nameTag and nameTag:FindFirstChild("NameText") then
-                            nameTag.NameText.TextColor3 = highlightColor
-                            nameTag.NameText.Text = string.format("%s [%dm]", player.Name, math.floor(dist))
-                        end
-                    else
-                        if highlight then highlight:Destroy() end
-                        if nameTag then nameTag:Destroy() end
+                    elseif not isManiac and Settings.SurvivorESP then 
+                        shouldHighlight = true 
+                        highlightColor = Color3.fromRGB(Settings.SurvivorR, Settings.SurvivorG, Settings.SurvivorB) 
                     end
                 end
-            end
-        else
-            -- Если мы в лобби, отключаем ESP игроков
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player.Character then
-                    local highlight = player.Character:FindFirstChild("EssentialESP")
-                    local nameTag = player.Character:FindFirstChild("EssentialNameTag")
-                    if highlight then highlight:Destroy() end
+                
+                if shouldHighlight then
+                    if not highlight then
+                        highlight = Instance.new("Highlight") highlight.Name = "EssentialESP" highlight.OutlineColor = Color3.fromRGB(255, 255, 255) highlight.FillTransparency = 0.5 highlight.OutlineTransparency = 0.2 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop highlight.Parent = player.Character
+                    end
+                    highlight.FillColor = highlightColor
+                    if not nameTag then
+                        nameTag = Instance.new("BillboardGui")
+                        nameTag.Name = "EssentialNameTag"
+                        nameTag.Size = UDim2.new(0, 300, 0, 50)
+                        nameTag.StudsOffset = Vector3.new(0, 3, 0)
+                        nameTag.AlwaysOnTop = true
+                        local textLabel = Instance.new("TextLabel")
+                        textLabel.Name = "NameText"
+                        textLabel.Size = UDim2.new(1, 0, 1, 0)
+                        textLabel.BackgroundTransparency = 1
+                        textLabel.Font = Enum.Font.GothamBold
+                        textLabel.TextSize = 14
+                        textLabel.TextStrokeTransparency = 0.2
+                        textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+                        textLabel.RichText = true
+                        textLabel.Parent = nameTag
+                        local head = player.Character:FindFirstChild("Head") or player.Character:FindFirstChild("HumanoidRootPart")
+                        if head then
+                            nameTag.Adornee = head
+                            nameTag.Parent = player.Character
+                        end
+                    end
+                    if nameTag and nameTag:FindFirstChild("NameText") then
+                        local finalText = player.Name
+                        if Settings.StaffTags then
+                            local role = StaffList[player.Name]
+                            if role == "Dev" then
+                                finalText = '<font color="#8B0000">[</font><font color="#FF0000">Dev</font><font color="#800020">]</font> ' .. player.Name
+                            elseif role == "Tester" then
+                                finalText = '<font color="#7FFFD4">[</font><font color="#5FECC4">T</font><font color="#4FDAB4">e</font><font color="#3FC8A4">s</font><font color="#2FB694">t</font><font color="#1FA484">e</font><font color="#0F9274">r</font><font color="#7FFFD4">]</font> ' .. player.Name
+                            end
+                        end
+                        nameTag.NameText.Text = finalText
+                        nameTag.NameText.TextColor3 = highlightColor
+                    end
+                else 
+                    if highlight then highlight:Destroy() end 
                     if nameTag then nameTag:Destroy() end
                 end
             end
         end
     end)
 end))
-print("[Essential Recode]: Rollback Version (Gate ESP Fixed & No Stop Emote Removed & Staff Tags Removed) Loaded!")
+
+print("[Essential Recode]: Low Graphics Update Loaded!")
